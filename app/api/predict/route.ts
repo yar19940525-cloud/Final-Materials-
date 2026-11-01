@@ -139,6 +139,11 @@ export async function POST(req: Request) {
         if (err instanceof Anthropic.RateLimitError) {
           send("\n\u0000RATE:요청이 많아요.");
           return;
+        } else if (err instanceof Anthropic.APIError && /usage limits/i.test(String(err.message))) {
+          const until = String(err.message).match(/on (\d{4})-(\d{2})-(\d{2})/);
+          msg =
+            "이번 달 AI 사용 한도에 도달했어요. console.anthropic.com → Settings → Limits에서 월 사용 한도를 올리면 바로 다시 쓸 수 있어요." +
+            (until ? ` (그대로 두면 ${Number(until[2])}월 ${Number(until[3])}일에 풀려요)` : "");
         } else if (err instanceof Anthropic.APIError && /credit balance/i.test(String(err.message)))
           msg = "AI 사용 크레딧이 다 떨어졌어요. console.anthropic.com → Settings → Billing에서 충전한 뒤 다시 시도해 주세요.";
         else if (err instanceof Anthropic.AuthenticationError) msg = "서버의 API 키가 올바르지 않아요. 키를 확인해 주세요.";
