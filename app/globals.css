@@ -157,6 +157,7 @@ button:disabled{opacity:.5}
 .sheet.ana-doc .xs{text-align:center;color:#444;font-size:13px;margin:0 0 10px}
 .sheet.ana-doc .bar{width:100%;text-align:left;padding:4px 10px;margin:16px 0 8px}
 .sheet.ana-doc h3{font-size:15px;margin:12px 0 4px}
+.sheet.ana-doc table{table-layout:auto}
 .sheet.ana-doc td{text-align:left}
 .sheet.ana-doc td:first-child{text-align:center}
 

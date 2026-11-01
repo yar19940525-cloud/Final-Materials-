@@ -193,25 +193,60 @@ export async function makeDocx(sheet: HTMLElement, mode: Mode, layout: DocxLayou
     });
   };
 
+  // 본문 폭 (twip). 표는 항상 이 폭을 꽉 채운다.
+  const CONTENT_TW = layout.exam ? (layout.columns === 2 ? Math.floor((10432 - 454) / 2) : 10432) : 9638;
+
   const table = (el: HTMLElement): Table => {
     const border = { style: d.BorderStyle.SINGLE, size: 4, color: "999999" };
     const borders = { top: border, bottom: border, left: border, right: border };
-    const rows = [...el.querySelectorAll("tr")].map(
+    const trs = [...el.querySelectorAll("tr")];
+    // 칸 합치기(colspan·rowspan)를 감안해 각 칸이 몇 번째 열에 놓이는지 계산한다.
+    const occ: boolean[][] = [];
+    const placed = new Map<HTMLTableCellElement, { c: number; cs: number }>();
+    trs.forEach((tr, r) => {
+      occ[r] ??= [];
+      let c = 0;
+      for (const cell of [...tr.children] as HTMLTableCellElement[]) {
+        while (occ[r][c]) c++;
+        const cs = Math.max(1, cell.colSpan || 1), rs = Math.max(1, cell.rowSpan || 1);
+        for (let i = 0; i < rs; i++) for (let j = 0; j < cs; j++) (occ[r + i] ??= [])[c + j] = true;
+        placed.set(cell, { c, cs });
+        c += cs;
+      }
+    });
+    const ncol = Math.max(1, ...occ.map((row) => row.length));
+    // 열 너비: 화면에 그려진 표의 비율을 그대로 쓴다 (화면에 없으면 같은 너비로).
+    const measured = new Array<number>(ncol).fill(0);
+    for (const [cell, { c, cs }] of placed) if (cs === 1) measured[c] = Math.max(measured[c], cell.getBoundingClientRect().width);
+    const known = measured.filter((w) => w > 0);
+    const avg = known.length ? known.reduce((a, b) => a + b, 0) / known.length : 1;
+    const raw = measured.map((w) => (w > 0 ? w : avg));
+    const sum = raw.reduce((a, b) => a + b, 0);
+    const widths = raw.map((w) => Math.max(400, Math.round((w / sum) * CONTENT_TW)));
+    const fix = CONTENT_TW - widths.reduce((a, b) => a + b, 0);
+    widths[widths.indexOf(Math.max(...widths))] += fix; // 합이 본문 폭과 정확히 같도록
+
+    const rows = trs.map(
       (tr) =>
         new d.TableRow({
-          children: [...tr.children].map((c) => {
-            const cell = c as HTMLTableCellElement;
+          children: ([...tr.children] as HTMLTableCellElement[]).map((cell) => {
             const isTh = cell.tagName === "TH";
+            const { c, cs } = placed.get(cell)!;
+            // 제목 칸·짧은 값은 가운데, 긴 글(설명·여러 줄)은 왼쪽 정렬
+            const text = (cell.textContent ?? "").trim();
+            const left = !isTh && !el.classList.contains("hd") && (text.length > 14 || !!cell.querySelector("br, p"));
             return new d.TableCell({
               borders,
-              columnSpan: cell.colSpan > 1 ? cell.colSpan : undefined,
+              width: { size: widths.slice(c, c + cs).reduce((a, b) => a + b, 0), type: d.WidthType.DXA },
+              columnSpan: cs > 1 ? cs : undefined,
               rowSpan: cell.rowSpan > 1 ? cell.rowSpan : undefined,
               shading: isTh ? { type: d.ShadingType.CLEAR, fill: "DDDDDD", color: "auto" } : undefined,
-              margins: { top: 40, bottom: 40, left: 80, right: 80 },
+              margins: { top: 50, bottom: 50, left: 100, right: 100 },
               verticalAlign: d.VerticalAlign.CENTER,
               children: [
                 new d.Paragraph({
-                  alignment: d.AlignmentType.CENTER,
+                  alignment: left ? d.AlignmentType.LEFT : d.AlignmentType.CENTER,
+                  spacing: { line: 300 },
                   children: inlineOf(cell, { bold: isTh || el.classList.contains("hd") }),
                 }),
               ],
@@ -219,7 +254,12 @@ export async function makeDocx(sheet: HTMLElement, mode: Mode, layout: DocxLayou
           }),
         }),
     );
-    return new d.Table({ rows, width: { size: 100, type: d.WidthType.PERCENTAGE } });
+    return new d.Table({
+      rows,
+      width: { size: CONTENT_TW, type: d.WidthType.DXA },
+      columnWidths: widths,
+      layout: d.TableLayoutType.FIXED,
+    });
   };
 
   // ── 예상문제 시험지 모양 (화면·PDF의 CSS와 맞춘다) ──
