@@ -160,7 +160,8 @@ ${o.note ? `\n선생님 추가 요청 (최우선 반영): ${o.note}\n` : ""}
 
 출력 형식 (HTML 조각만. <html>,<body>,<style>,<script>, 코드블록(\`\`\`), 설명 문장 금지. 모든 요소는 최상위에 나란히 두고 서로 감싸지 마):
 - 문항 시작: <p class="qn"><b>번호 표기</b> 발문${pointExample ? ` <span class="pt">배점</span></p>  (배점은 기출과 같은 모양으로, 예: ${pointExample})` : "</p>  (배점 표기는 넣지 마)"}
-- 지문·<보기>·조건: <p class="bx">내용</p> (여러 줄이면 <br>로 줄바꿈, 지문이 길면 여러 개의 <p class="bx">). 밑줄은 <u>, 굵게는 <b>, (A)(B) 같은 기호는 그대로.
+- 지문·<보기>·대화문·조건: 반드시 <p class="bx">로 써 (상자 안에 들어감). 여러 줄이면 한 <p class="bx"> 안에서 <br>로 줄바꿈하고, 지문이 길면 여러 개의 <p class="bx">를 이어 써 (이어진 것들은 한 상자로 묶임). 밑줄은 <u>, 굵게는 <b>, (A)(B) 같은 기호는 그대로.
+  예: <p class="bx">&lt;보기&gt;<br>ⓐ He fixed his car <u>himself</u>.<br>ⓑ I introduced <u>myself</u> to my new friends.</p>
 - 표가 필요하면 <table>(머리줄은 <th>).
 - 객관식 선택지: 선택지 하나마다 <p class="ch">① 선택지</p>
 - 서술형·단답형 답 쓰는 칸: <p class="wr"></p> (서술형은 2개, 단답형은 1개)

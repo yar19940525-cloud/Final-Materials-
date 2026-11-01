@@ -257,14 +257,28 @@ export async function makeDocx(sheet: HTMLElement, mode: Mode, layout: DocxLayou
     if (mode === "test" && el.matches(".ans, .exp, .src, .ana")) return null;
     // 발문·지문은 다음 문단과 같은 단에 붙여 문항이 단·쪽 경계에서 끊기지 않게 한다
     if (c.contains("qn")) return new d.Paragraph({ children: inlineOf(el), keepNext: true, keepLines: true, spacing: { before: 320, after: 100, line: 320 } });
-    if (c.contains("bx"))
-      return new d.Paragraph({
-        children: inlineOf(el),
-        spacing: { before: 0, after: 0, line: 330 },
-        keepNext: true,
-        indent: { left: 100, right: 100 },
-        border: layout.boxPassage === false ? undefined : { top: line(), bottom: line(), left: line(), right: line() },
+    // 지문·<보기>·대화문: 이어지는 .bx 문단들을 칸 하나짜리 표(테두리 상자)에 담는다 (Word 버전과 무관하게 상자가 보이도록)
+    if (c.contains("bxg")) {
+      const edge = layout.boxPassage === false ? { style: d.BorderStyle.NONE, size: 0, color: "FFFFFF" } : { style: d.BorderStyle.SINGLE, size: 6, color: "888888" };
+      const paras = ([...el.children] as HTMLElement[]).map(
+        (bx) => new d.Paragraph({ children: inlineOf(bx), keepNext: true, keepLines: true, spacing: { before: 20, after: 20, line: 330 } }),
+      );
+      return new d.Table({
+        width: { size: 100, type: d.WidthType.PERCENTAGE },
+        rows: [
+          new d.TableRow({
+            cantSplit: false,
+            children: [
+              new d.TableCell({
+                borders: { top: edge, bottom: edge, left: edge, right: edge },
+                margins: { top: 90, bottom: 90, left: 150, right: 150 },
+                children: paras.length ? paras : [new d.Paragraph("")],
+              }),
+            ],
+          }),
+        ],
       });
+    }
     if (c.contains("ch")) return new d.Paragraph({ children: inlineOf(el), spacing: { before: 30, after: 30, line: 320 }, indent: { left: 240 } });
     if (c.contains("wr"))
       return mode === "test" ? new d.Paragraph({ text: "", spacing: { before: 440, after: 0 }, border: { bottom: line("999999") } }) : null;
@@ -283,6 +297,21 @@ export async function makeDocx(sheet: HTMLElement, mode: Mode, layout: DocxLayou
     if (c.contains("ana")) return new d.Paragraph({ children: inlineOf(el, { size: 19 }), spacing: { after: 30 } });
     return undefined;
   };
+
+  if (layout.exam) {
+    let group: HTMLElement | null = null;
+    for (const node of [...sheet.childNodes]) {
+      if (node instanceof HTMLElement && node.classList.contains("bx")) {
+        if (!group) {
+          group = document.createElement("div");
+          group.className = "bxg";
+          if (node.dataset.colstart) group.dataset.colstart = "1";
+          node.before(group);
+        }
+        group.append(node);
+      } else if (node instanceof HTMLElement || node.textContent?.trim()) group = null;
+    }
+  }
 
   const body: (Paragraph | Table)[] = [];
   let split = -1; // 2단이 시작되는 위치

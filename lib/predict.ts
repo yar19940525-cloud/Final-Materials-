@@ -217,13 +217,28 @@ export function assemble(title: string, plan: Plan, questions: string): string {
   const blocks: HTMLElement[] = [];
   let cur: HTMLElement | null = null;
   let chs: HTMLElement | null = null;
-  for (const el of [...root.children] as HTMLElement[]) {
+  let inBody = false; // 발문 다음 ~ 선택지·답칸 전 (= 지문·<보기> 자리)
+  for (const raw of [...root.children] as HTMLElement[]) {
+    // <div class="bx"> 안에 문단 여러 개 → 문단마다 <p class="bx">로 (화면·Word 모두 한 상자로 이어 그린다)
+    const list =
+      raw.tagName === "DIV" && raw.classList.contains("bx") && raw.querySelector(":scope > p, :scope > div")
+        ? ([...raw.children] as HTMLElement[]).map((c) => {
+            const p = doc.createElement("p");
+            p.className = "bx";
+            p.append(...c.childNodes);
+            return p;
+          })
+        : [raw];
+    for (const el of list) {
     if (!cur || el.classList.contains("qn") || el.classList.contains("fail")) {
       cur = doc.createElement("div");
       cur.className = "blk";
       blocks.push(cur);
       chs = null;
-    }
+      inBody = el.classList.contains("qn");
+    } else if (el.matches(".ch, .wr, .ans, .exp, .src")) inBody = false;
+    // 발문과 선택지 사이의 표시 없는 문단(<보기>·대화문 줄 등)은 지문 상자로
+    else if (inBody && el.tagName === "P" && !el.className) el.className = "bx";
     if (el.classList.contains("ch")) {
       if (!chs) {
         chs = doc.createElement("div");
@@ -234,6 +249,7 @@ export function assemble(title: string, plan: Plan, questions: string): string {
     } else {
       chs = null;
       cur.append(el);
+    }
     }
   }
   const end = plan.style.footer ? `<div class="blk"><p class="xh-end">${esc(plan.style.footer)}</p></div>` : "";
