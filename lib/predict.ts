@@ -114,7 +114,7 @@ function normalizeStyle(raw: Partial<ExamStyle> | undefined): ExamStyle {
     font: r.font === "sans" ? "sans" : "serif",
     numStyle: r.numStyle === "box" ? "box" : "dot",
     choiceLayout: r.choiceLayout === "inline" ? "inline" : "vertical",
-    boxPassage: r.boxPassage !== false,
+    boxPassage: true, // 지문·대화문·<보기>는 기출 모양과 상관없이 항상 상자에 넣는다
     pointExample: str(r.pointExample, 20),
     essaySeparate: r.essaySeparate !== false,
     essayLabel: str(r.essayLabel, 10) || "서술형",
@@ -230,12 +230,24 @@ export function assemble(title: string, plan: Plan, questions: string): string {
           })
         : [raw];
     for (const el of list) {
-    if (!cur || el.classList.contains("qn") || el.classList.contains("fail")) {
+    // 여러 문항이 지문 하나를 같이 쓰는 묶음의 안내문 ("[3~4] 다음 글을 읽고 …")
+    const isSet =
+      el.classList.contains("set") ||
+      (el.tagName === "P" && !el.className && /^\s*\[\s*\d+\s*[~∼\-–]\s*\d+\s*\]/.test(el.textContent ?? ""));
+    if (isSet) el.className = "set";
+    // 묶음 안내문·지문 바로 뒤의 첫 문항은 같은 블록에 넣어 안내문·지문·문항이 떨어지지 않게 한다
+    const joinSet = el.classList.contains("qn") && cur?.dataset.set === "open";
+    if (joinSet && cur) {
+      cur.dataset.set = "done";
+      chs = null;
+      inBody = true;
+    } else if (!cur || isSet || el.classList.contains("qn") || el.classList.contains("fail")) {
       cur = doc.createElement("div");
       cur.className = "blk";
+      if (isSet) cur.dataset.set = "open";
       blocks.push(cur);
       chs = null;
-      inBody = el.classList.contains("qn");
+      inBody = isSet || el.classList.contains("qn");
     } else if (el.matches(".ch, .wr, .ans, .exp, .src")) inBody = false;
     // 발문과 선택지 사이의 표시 없는 문단(<보기>·대화문 줄 등)은 지문 상자로
     else if (inBody && el.tagName === "P" && !el.className) el.className = "bx";

@@ -102,7 +102,10 @@ button:disabled{opacity:.5}
 .sheet.pq .qn:first-of-type{margin-top:8px}
 .sheet.pq .pt{color:#555;font-size:13px}
 .sheet.pq .bx{border:1px solid #888;padding:6px 12px;margin:0;line-height:1.75}
-.sheet.pq .bx + .bx{border-top:0}
+.sheet.pq .bx + .bx{border-top:0;padding-top:0}
+.sheet.pq .bx:has(+ .bx){border-bottom:0;padding-bottom:0} /* 이어지는 지문 줄들은 한 상자로 */
+.sheet.pq .set{font-weight:700;margin:0 0 6px}
+.sheet.pq .bx + .qn{margin-top:12px}
 .sheet.pq .ch{margin:2px 0 2px 1.2em}
 .sheet.pq .wr{height:0;border-bottom:1px solid #999;margin:30px 0 4px}
 .sheet.pq .ans,.sheet.pq .exp,.sheet.pq .src{margin:4px 0 0;font-size:14px}
