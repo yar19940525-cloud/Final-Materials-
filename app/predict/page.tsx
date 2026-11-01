@@ -6,7 +6,7 @@ import { download, makePagesPdf } from "@/lib/client";
 import { makeDocx } from "@/lib/docx";
 import { assemble, makePlan, prepare, writeQuestions } from "@/lib/predict";
 import { flatten, paginate } from "@/lib/paginate";
-import { DEFAULT_STYLE, ROLE_LABEL, type ExamStyle, type PredictOptions, type Role } from "@/lib/predict-prompt";
+import { DEFAULT_STYLE, QUALITY_LABEL, ROLE_LABEL, type Quality, type ExamStyle, type PredictOptions, type Role } from "@/lib/predict-prompt";
 
 type Mode = "test" | "key";
 interface Item {
@@ -27,7 +27,7 @@ const SLOTS: { role: Role; icon: string; desc: string; required?: boolean }[] = 
 export default function Predict() {
   const [items, setItems] = useState<Item[]>([]);
   const [previewId, setPreviewId] = useState<number | null>(null);
-  const [opts, setOpts] = useState<PredictOptions>({ count: 20, mcRatio: 70, level: "중간", note: "" });
+  const [opts, setOpts] = useState<PredictOptions>({ count: 20, mcRatio: 70, level: "중간", note: "", quality: "standard" });
   const [title, setTitle] = useState("");
   const [msg, setMsg] = useState<{ text: string; err?: boolean }>({ text: "" });
   const [busy, setBusy] = useState(false);
@@ -261,6 +261,12 @@ export default function Predict() {
             난이도
             <select value={opts.level} onChange={(e) => set("level", e.target.value as PredictOptions["level"])}>
               {(["기본", "중간", "상", "최상"] as const).map((l) => <option key={l}>{l}</option>)}
+            </select>
+          </label>
+          <label>
+            품질 · 비용 (20문항 기준)
+            <select value={opts.quality} onChange={(e) => set("quality", e.target.value as Quality)}>
+              {(["standard", "high", "saver"] as const).map((q) => <option key={q} value={q}>{QUALITY_LABEL[q]}</option>)}
             </select>
           </label>
           <label className="wide">

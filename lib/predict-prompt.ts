@@ -12,8 +12,16 @@ export interface PredictOptions {
   mcRatio: number; // 객관식 비율 0~100 (나머지는 서술형·단답형)
   level: "기본" | "중간" | "상" | "최상";
   note: string; // 선생님 추가 요청
+  quality: Quality; // 품질/비용 모드
 }
 
+// 품질/비용 모드: 고품질 = Opus, 표준 = Sonnet, 절약 = Haiku
+export type Quality = "high" | "standard" | "saver";
+export const QUALITY_LABEL: Record<Quality, string> = {
+  high: "고품질 (약 1,000원)",
+  standard: "표준 (약 300~400원)",
+  saver: "절약 (약 30원)",
+};
 export interface PlanItem {
   no: number;
   num?: string; // 시험지에 찍을 번호 표기 (예: "3." / "[서술형 1]"), 화면에서 정한다

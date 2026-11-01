@@ -34,6 +34,7 @@ function readOptions(raw: unknown): PredictOptions {
     mcRatio: Math.min(100, Math.max(0, Math.round(Number(o.mcRatio) || 0))),
     level,
     note: String(o.note ?? "").slice(0, 1000),
+    quality: o.quality === "high" || o.quality === "saver" ? o.quality : "standard",
   };
 }
 
@@ -105,18 +106,25 @@ export async function POST(req: Request) {
   if (last.type === "document" || last.type === "image") last.cache_control = { type: "ephemeral" };
   content.push({ type: "text", text: stage === "plan" ? planPrompt(opts) : writePrompt(opts, items, pointExample) });
 
+  // 품질/비용 모드별 모델·생각 깊이. 계획과 문항 작성은 같은 모델을 써야 자료 캐시가 이어진다.
+  const MODE = {
+    high: { model: "claude-opus-5-5", effort: "high", fallback: true },
+    standard: { model: "claude-sonnet-5-5", effort: "medium", fallback: true },
+    saver: { model: "claude-haiku-5-5", effort: "medium", fallback: false }, // Haiku는 서버 측 대체 기능이 없다
+  } as const;
+  const mode = MODE[opts.quality];
+
   const client = new Anthropic({ apiKey });
   const stream = client.beta.messages.stream({
-    model: "claude-opus-5-5",
+    model: mode.model,
     max_tokens: 64000,
     thinking: { type: "adaptive" },
     output_config:
       stage === "plan"
-        ? { effort: "high", format: { type: "json_schema", schema: PLAN_SCHEMA as unknown as Record<string, unknown> } }
-        : { effort: "high" },
-    // 안전 분류기가 거절하면 서버가 다른 모델로 자동 재시도한다.
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
+        ? { effort: mode.effort, format: { type: "json_schema", schema: PLAN_SCHEMA as unknown as Record<string, unknown> } }
+        : { effort: mode.effort },
+    // 안전 분류기가 거절하면 서버가 다른 모델로 자동 재시도한다 (Opus·Sonnet만).
+    ...(mode.fallback ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
     messages: [{ role: "user", content }],
   });
 
