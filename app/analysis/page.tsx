@@ -17,16 +17,52 @@ export default function Analysis() {
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [msg, setMsg] = useState<{ text: string; err?: boolean }>({ text: "" });
+  const [sms, setSms] = useState("");
+  const [smsBusy, setSmsBusy] = useState(false);
+  const [smsMsg, setSmsMsg] = useState<{ text: string; err?: boolean }>({ text: "" });
   const sheetRef = useRef<HTMLDivElement>(null);
   const outRef = useRef<HTMLDivElement>(null);
+
+  const makeSmsLater = useRef(false);
 
   // 직접 고친 내용을 지키기 위해 새 결과가 올 때만 innerHTML을 넣는다.
   useEffect(() => {
     if (html !== null && sheetRef.current) {
       sheetRef.current.innerHTML = html;
       outRef.current?.scrollIntoView({ behavior: "smooth" });
+      if (makeSmsLater.current) {
+        makeSmsLater.current = false;
+        makeSms();
+      }
     }
-  }, [html]);
+  }, [html]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 화면의 분석 자료(직접 고친 내용 포함)를 글로 바꿔 요약 문자를 만든다.
+  async function makeSms() {
+    const el = sheetRef.current;
+    if (!el || smsBusy) return;
+    setSmsBusy(true);
+    setSms("");
+    setSmsMsg({ text: "분석 자료로 기출분석 문자를 쓰는 중…" });
+    try {
+      const r = await runAI("/api/analysis-sms", [], { analysis: el.innerText, options: JSON.stringify({ quality }) }, setSms);
+      setSms(r.text.trim());
+      setSmsMsg(r.truncated ? { text: "중간에 끊겼어요. 다시 만들어 보세요.", err: true } : { text: "완료! 내용을 고친 뒤 📋 복사해서 보내세요." });
+    } catch (e) {
+      setSmsMsg({ text: `문자 만들기 실패: ${e instanceof Error ? e.message : e}`, err: true });
+    } finally {
+      setSmsBusy(false);
+    }
+  }
+
+  async function copySms() {
+    try {
+      await navigator.clipboard.writeText(sms);
+      setSmsMsg({ text: "복사했어요! 카카오톡·문자에 붙여 넣으세요." });
+    } catch {
+      setSmsMsg({ text: "복사하지 못했어요. 글을 길게 눌러 직접 복사해 주세요.", err: true });
+    }
+  }
 
   const ready = slot.files.some((f) => f.role === "sample") && slot.files.some((f) => f.role === "exam");
 
@@ -42,6 +78,7 @@ export default function Analysis() {
         setMsg({ text: `분석 자료 쓰는 중… (${t.length.toLocaleString()}자, ${Math.round((Date.now() - t0) / 1000)}초)` }),
       );
       setHtml(clean(r.text));
+      makeSmsLater.current = true; // 화면에 분석 자료가 들어간 뒤 문자도 이어서 만든다
       setMsg(
         r.truncated
           ? { text: "내용이 길어 끝부분이 잘렸어요. 시험지 수를 줄여 다시 만들거나, 잘린 부분은 직접 채워 주세요.", err: true }
@@ -136,6 +173,18 @@ export default function Analysis() {
         </div>
         <div className="scroller">
           <div ref={sheetRef} className="sheet key ana-doc" contentEditable suppressContentEditableWarning />
+        </div>
+
+        <div className="card" style={{ marginTop: 12 }}>
+          <div className="row" style={{ marginTop: 0, alignItems: "center" }}>
+            <b style={{ flex: 1 }}>✉️ 기출분석 문자</b>
+            <span className="hint" style={{ margin: 0 }}>{sms.length.toLocaleString()}자</span>
+            <button disabled={smsBusy || busy} onClick={makeSms}>{smsBusy ? "쓰는 중…" : "↻ 문자 다시 만들기"}</button>
+            <button className="p" disabled={!sms || smsBusy} onClick={copySms}>📋 복사</button>
+          </div>
+          <textarea className="cheer-out" value={sms} onChange={(e) => setSms(e.target.value)} readOnly={smsBusy} placeholder="기출분석 자료가 만들어지면 여기에 학생·학부모에게 보낼 요약 문자가 자동으로 만들어져요." />
+          <p className="hint">위 분석 자료를 고쳤다면 “문자 다시 만들기”를 눌러 반영하세요. 문자 글도 바로 고칠 수 있어요.</p>
+          <div className={"msg" + (smsMsg.err ? " err" : "")}>{smsMsg.text}</div>
         </div>
       </div>
     </main>
