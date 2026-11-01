@@ -4,7 +4,7 @@ import Pwa from "./pwa";
 
 export const metadata: Metadata = {
   title: "학습지 → 시험지·답지 변환기",
-  description: "학습지 사진을 올리면 필기를 지운 시험지와 정답이 표시된 답지를 만들어 줍니다.",
+  description: "학습지 변환, 내신 예상문제, 기출분석 자료, 시험 당일 응원 메시지를 만들어 줍니다.",
   applicationName: "시험지 변환기",
   icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
   appleWebApp: { capable: true, title: "시험지 변환기", statusBarStyle: "default" },

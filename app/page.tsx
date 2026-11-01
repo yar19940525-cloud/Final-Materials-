@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Nav from "./nav";
 import { useEffect, useRef, useState } from "react";
 import { download, makePdf } from "@/lib/client";
 import { buildUnits, convertUnits, countPages, MAX_TOTAL_PAGES } from "@/lib/convert";
@@ -143,10 +143,7 @@ export default function Home() {
 
   return (
     <main>
-      <nav className="nav">
-        <Link href="/" className="on">📄 시험지·답지 변환</Link>
-        <Link href="/predict">🎯 예상문제 만들기</Link>
-      </nav>
+      <Nav />
       <h1>📄 학습지 → 시험지·답지 변환기</h1>
       <p className="sub">
         학습지 사진을 올리면 필기·낙서는 지우고 깨끗한 시험지와, 정답이 빨간색으로 표시된 답지를 만들어 줍니다.

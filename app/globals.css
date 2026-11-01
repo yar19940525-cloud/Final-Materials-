@@ -150,6 +150,16 @@ button:disabled{opacity:.5}
 .sheet.chi .chs .ch{margin:1px 0}
 .sheet.paged:not(.bxon) .bx{border:0;padding:2px 0}
 
+/* 응원 메시지 */
+.cheer-out{width:100%;min-height:520px;margin-top:10px;font:inherit;font-size:15px;line-height:1.7;color:var(--fg);background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:12px;resize:vertical;white-space:pre-wrap}
+/* 기출분석 자료 */
+.sheet.ana-doc .xt{text-align:center;font-size:22px;font-weight:800;margin:4px 0 2px}
+.sheet.ana-doc .xs{text-align:center;color:#444;font-size:13px;margin:0 0 10px}
+.sheet.ana-doc .bar{width:100%;text-align:left;padding:4px 10px;margin:16px 0 8px}
+.sheet.ana-doc h3{font-size:15px;margin:12px 0 4px}
+.sheet.ana-doc td{text-align:left}
+.sheet.ana-doc td:first-child{text-align:center}
+
 @media print{
   body{background:#fff}main{padding:0;max-width:none}
   .card,h1,.sub,.msg,.tabs,.install,.install-tip,.nav{display:none!important}

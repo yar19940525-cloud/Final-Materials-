@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Nav from "../nav";
 import { useEffect, useRef, useState } from "react";
 import { download, makePagesPdf } from "@/lib/client";
 import { makeDocx } from "@/lib/docx";
@@ -200,10 +200,7 @@ export default function Predict() {
 
   return (
     <main>
-      <nav className="nav">
-        <Link href="/">📄 시험지·답지 변환</Link>
-        <Link href="/predict" className="on">🎯 예상문제 만들기</Link>
-      </nav>
+      <Nav />
       <h1>🎯 내신 예상문제 생성기</h1>
       <p className="sub">기출분석·기출문제로 우리 학교 출제 경향을 파악하고, 학교 프린트 내용으로 예상문제를 쫙 뽑아 줍니다.</p>
 

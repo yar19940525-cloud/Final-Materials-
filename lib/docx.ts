@@ -134,6 +134,15 @@ export async function makeDocx(sheet: HTMLElement, mode: Mode, layout: DocxLayou
         spacing: SPACING,
       });
     }
+    // 기출분석 자료의 큰 제목·부제
+    if (el.classList.contains("xt") || el.classList.contains("xs")) {
+      const big = el.classList.contains("xt");
+      return new d.Paragraph({
+        children: inlineOf(el, big ? { bold: true, size: 32 } : { color: "444444", size: 19 }),
+        alignment: d.AlignmentType.CENTER,
+        spacing: { before: big ? 120 : 0, after: big ? 80 : 200 },
+      });
+    }
     if (el.tagName === "H2" || el.tagName === "H3")
       return new d.Paragraph({
         children: inlineOf(el, { bold: true }),
