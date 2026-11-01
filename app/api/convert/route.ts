@@ -90,6 +90,8 @@ export async function POST(req: Request) {
         console.error("convert failed", err);
         let msg = "AI 변환 중 오류가 났어요.";
         if (err instanceof Anthropic.RateLimitError) { send("\n\u0000RATE:요청이 많아요."); return; }
+        else if (err instanceof Anthropic.APIError && /credit balance/i.test(String(err.message)))
+          msg = "AI 사용 크레딧이 다 떨어졌어요. console.anthropic.com → Settings → Billing에서 충전한 뒤 다시 시도해 주세요.";
         else if (err instanceof Anthropic.AuthenticationError) msg = "서버의 API 키가 올바르지 않아요. 키를 확인해 주세요.";
         else if (err instanceof Anthropic.PermissionDeniedError) msg = await diagnose403(apiKey);
         else if (err instanceof Anthropic.APIError)
