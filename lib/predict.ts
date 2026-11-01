@@ -1,7 +1,7 @@
 // 예상문제 만들기 (브라우저): 1) 출제 계획을 세우고 2) 5문항씩 나눠 병렬로 문제를 만든 뒤 번호순으로 이어 붙인다.
 // 한 번에 수십 문항을 만들면 AI 출력 한도·서버 시간 제한에 걸리므로 나눠서 요청한다.
 import { clean, shrink } from "./client";
-import type { Plan, PlanItem, PredictOptions, Role } from "./predict-prompt";
+import { DEFAULT_STYLE, type ExamStyle, type Plan, type PlanItem, type PredictOptions, type Role } from "./predict-prompt";
 
 const PROTOCOL = "1"; // app/api/predict/route.ts의 PROTOCOL과 같아야 함
 const BATCH = 5;
@@ -101,6 +101,40 @@ async function withRetry(run: () => Promise<Outcome>): Promise<{ text: string } 
   return { error: last || "알 수 없는 오류" };
 }
 
+// AI가 읽어 온 디자인 값을 검사하고, 빠진 값은 기본값으로 채운다.
+function normalizeStyle(raw: Partial<ExamStyle> | undefined): ExamStyle {
+  const r = raw ?? {};
+  const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+  const fields = Array.isArray(r.fields) ? r.fields.map((f) => str(f, 10)).filter(Boolean).slice(0, 6) : [];
+  return {
+    school: str(r.school, 40),
+    title: str(r.title, 80),
+    fields: fields.length ? fields : DEFAULT_STYLE.fields,
+    columns: r.columns === 1 ? 1 : 2,
+    font: r.font === "sans" ? "sans" : "serif",
+    numStyle: r.numStyle === "box" ? "box" : "dot",
+    choiceLayout: r.choiceLayout === "inline" ? "inline" : "vertical",
+    boxPassage: r.boxPassage !== false,
+    pointExample: str(r.pointExample, 20),
+    essaySeparate: r.essaySeparate !== false,
+    essayLabel: str(r.essayLabel, 10) || "서술형",
+    note: str(r.note, 200),
+    footer: str(r.footer, 40),
+  };
+}
+
+const isMC = (it: PlanItem) => it.type.includes("객관");
+
+// 번호 매기기: 서술형을 따로 매기는 학교면 객관식 먼저 1, 2, … 그다음 [서술형 1], [서술형 2], …
+export function numberItems(items: PlanItem[], style: ExamStyle): PlanItem[] {
+  if (!style.essaySeparate) return items.map((it, i) => ({ ...it, no: i + 1, num: `${i + 1}.` }));
+  const mc = items.filter(isMC), essay = items.filter((it) => !isMC(it));
+  return [
+    ...mc.map((it, i) => ({ ...it, no: i + 1, num: `${i + 1}.` })),
+    ...essay.map((it, i) => ({ ...it, no: mc.length + i + 1, num: `[${style.essayLabel} ${i + 1}]` })),
+  ];
+}
+
 export async function makePlan(files: Prepared[], opts: PredictOptions, onChars: (n: number) => void): Promise<Plan> {
   const r = await withRetry(() => request(files, { stage: "plan", options: JSON.stringify(opts) }, onChars));
   if ("error" in r) throw new Error(r.error);
@@ -111,8 +145,8 @@ export async function makePlan(files: Prepared[], opts: PredictOptions, onChars:
     throw new Error("출제 계획을 읽지 못했어요.");
   }
   if (!Array.isArray(plan.items) || !plan.items.length) throw new Error("출제 계획이 비어 있어요.");
-  // 번호를 1부터 다시 매긴다.
-  plan.items = plan.items.slice(0, opts.count).map((it, i) => ({ ...it, no: i + 1 }));
+  plan.style = normalizeStyle(plan.style);
+  plan.items = numberItems(plan.items.slice(0, opts.count), plan.style);
   return plan;
 }
 
@@ -120,6 +154,7 @@ export async function writeQuestions(
   files: Prepared[],
   opts: PredictOptions,
   items: PlanItem[],
+  pointExample: string,
   onProgress: (done: number, total: number, chars: number) => void,
 ): Promise<{ html: string; failed: number }> {
   const batches: PlanItem[][] = [];
@@ -134,7 +169,7 @@ export async function writeQuestions(
       const b = batches[i];
       live.set(i, 0);
       const r = await withRetry(() =>
-        request(files, { stage: "write", options: JSON.stringify(opts), items: JSON.stringify(b) }, (n) => {
+        request(files, { stage: "write", options: JSON.stringify(opts), items: JSON.stringify(b), pointExample }, (n) => {
           live.set(i, n);
           report();
         }),
@@ -142,7 +177,7 @@ export async function writeQuestions(
       if ("text" in r) results[i] = clean(r.text);
       else {
         failed++;
-        results[i] = `<p class="fail">⚠ ${b[0].no}~${b[b.length - 1].no}번 만들기 실패: ${esc(r.error)} (“다시 만들기”로 재시도하세요)</p>`;
+        results[i] = `<p class="fail">⚠ ${b[0].num}~${b[b.length - 1].num} 만들기 실패: ${esc(r.error)} (“다시 만들기”로 재시도하세요)</p>`;
       }
       live.delete(i);
       done++;
@@ -154,17 +189,53 @@ export async function writeQuestions(
   return { html: results.join(""), failed };
 }
 
-// 시험지 머리(제목·학번·이름) + 출제 경향(답지에만) + 문제
+// 시험지 = 머리(학교·제목·학년반번호이름 칸·안내문) + 출제 경향(답지에만) + 문항 블록들.
+// 문항은 <div class="blk">로 묶어 두고, 화면에서 이 블록 단위로 쪽·단에 배치한다 (lib/paginate.ts).
 export function assemble(title: string, plan: Plan, questions: string): string {
+  const st = plan.style;
+  const head =
+    `<div class="xh">` +
+    `<div class="xh-row"><p class="xh-school">${esc(st.school)}</p>` +
+    `<table class="xh-f"><tr>${st.fields.map((f) => `<th>${esc(f)}</th>`).join("")}</tr>` +
+    `<tr>${st.fields.map(() => "<td>&nbsp;</td>").join("")}</tr></table></div>` +
+    `<p class="xh-title">${esc(title || st.title || "예상문제")}</p>` +
+    (st.note ? `<p class="xh-note">${esc(st.note)}</p>` : "") +
+    `</div>`;
+
   const lines = plan.analysis
     .split("\n")
     .map((l) => l.replace(/^\s*[-•]\s*/, "").trim())
     .filter(Boolean);
-  return (
-    `<table class="hd"><tr><td colspan="3">${esc(title)}</td></tr><tr><td>학번</td><td>이름</td><td>점수</td></tr><tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr></table>` +
-    `<h2 class="ana">📊 출제 경향 분석</h2>` +
+  const ana =
+    `<div class="blk ana"><h2 class="ana">📊 출제 경향 분석</h2>` +
     lines.map((l) => `<p class="ana">• ${esc(l)}</p>`).join("") +
-    `<h2 class="ana">📝 예상문제</h2>` +
-    questions
-  );
+    `</div>`;
+
+  // 문항 시작(.qn)이나 실패 표시(.fail)마다 새 블록. 이어지는 선택지(.ch)는 한 묶음(.chs)으로.
+  const doc = new DOMParser().parseFromString(`<div>${questions}</div>`, "text/html");
+  const root = doc.body.firstElementChild!;
+  const blocks: HTMLElement[] = [];
+  let cur: HTMLElement | null = null;
+  let chs: HTMLElement | null = null;
+  for (const el of [...root.children] as HTMLElement[]) {
+    if (!cur || el.classList.contains("qn") || el.classList.contains("fail")) {
+      cur = doc.createElement("div");
+      cur.className = "blk";
+      blocks.push(cur);
+      chs = null;
+    }
+    if (el.classList.contains("ch")) {
+      if (!chs) {
+        chs = doc.createElement("div");
+        chs.className = "chs";
+        cur.append(chs);
+      }
+      chs.append(el);
+    } else {
+      chs = null;
+      cur.append(el);
+    }
+  }
+  const end = plan.style.footer ? `<div class="blk"><p class="xh-end">${esc(plan.style.footer)}</p></div>` : "";
+  return head + ana + blocks.map((b) => b.outerHTML).join("") + end;
 }

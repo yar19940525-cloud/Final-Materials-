@@ -181,6 +181,24 @@ export async function makePdf(el: HTMLElement): Promise<Blob> {
   return pdf.output("blob");
 }
 
+// 쪽(.page) 하나를 PDF 한 장으로 (예상문제 시험지처럼 화면에서 이미 A4로 배치된 경우)
+export async function makePagesPdf(el: HTMLElement): Promise<Blob> {
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
+  const pdf = new jsPDF({ unit: "mm", format: "a4" });
+  el.classList.add("exporting");
+  try {
+    const pages = [...el.querySelectorAll<HTMLElement>(".page")];
+    for (const [i, page] of pages.entries()) {
+      const canvas = await html2canvas(page, { scale: 2, backgroundColor: "#ffffff" });
+      if (i) pdf.addPage();
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, 210, 297);
+    }
+  } finally {
+    el.classList.remove("exporting");
+  }
+  return pdf.output("blob");
+}
+
 export function download(name: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

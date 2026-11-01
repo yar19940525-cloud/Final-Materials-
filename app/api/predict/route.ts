@@ -41,6 +41,7 @@ function readItems(raw: unknown): PlanItem[] {
   if (!Array.isArray(raw)) return [];
   return raw.slice(0, 15).map((i) => ({
     no: Math.round(Number(i?.no) || 0),
+    num: String(i?.num ?? "").slice(0, 20),
     type: String(i?.type ?? "").slice(0, 20),
     topic: String(i?.topic ?? "").slice(0, 600),
     basis: String(i?.basis ?? "").slice(0, 400),
@@ -57,6 +58,7 @@ export async function POST(req: Request) {
   let stage: "plan" | "write";
   let opts: PredictOptions;
   let items: PlanItem[] = [];
+  let pointExample = "";
   try {
     const form = await req.formData();
     if (form.get("v") !== PROTOCOL)
@@ -64,6 +66,7 @@ export async function POST(req: Request) {
     stage = form.get("stage") === "write" ? "write" : "plan";
     opts = readOptions(JSON.parse(String(form.get("options") ?? "{}")));
     if (stage === "write") items = readItems(JSON.parse(String(form.get("items") ?? "[]")));
+    pointExample = String(form.get("pointExample") ?? "").slice(0, 20);
     files = form.getAll("files").filter((f): f is File => f instanceof File);
     roles = form.getAll("roles").map((r) => String(r) as Role);
   } catch {
@@ -100,7 +103,7 @@ export async function POST(req: Request) {
   }
   const last = content[content.length - 1];
   if (last.type === "document" || last.type === "image") last.cache_control = { type: "ephemeral" };
-  content.push({ type: "text", text: stage === "plan" ? planPrompt(opts) : writePrompt(opts, items) });
+  content.push({ type: "text", text: stage === "plan" ? planPrompt(opts) : writePrompt(opts, items, pointExample) });
 
   const client = new Anthropic({ apiKey });
   const stream = client.beta.messages.stream({

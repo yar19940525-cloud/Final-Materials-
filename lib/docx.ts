@@ -44,10 +44,17 @@ async function rasterize(sheet: HTMLElement, mode: Mode): Promise<Map<HTMLElemen
   return out;
 }
 
-export async function makeDocx(sheet: HTMLElement, mode: Mode): Promise<Blob> {
+export interface DocxLayout {
+  columns?: 1 | 2; // data-colstart 표시가 있는 문단부터 2단
+  serif?: boolean; // 바탕(명조) 글꼴
+}
+
+export async function makeDocx(sheet: HTMLElement, mode: Mode, layout: DocxLayout = {}): Promise<Blob> {
   const d = await import("docx");
   const rasters = await rasterize(sheet, mode);
-  const FONT = { ascii: "Malgun Gothic", hAnsi: "Malgun Gothic", eastAsia: "맑은 고딕" };
+  const FONT = layout.serif
+    ? { ascii: "Batang", hAnsi: "Batang", eastAsia: "바탕" }
+    : { ascii: "Malgun Gothic", hAnsi: "Malgun Gothic", eastAsia: "맑은 고딕" };
 
   const run = (text: string, s: Style): TextRun =>
     new d.TextRun({
@@ -199,8 +206,22 @@ export async function makeDocx(sheet: HTMLElement, mode: Mode): Promise<Blob> {
   };
 
   const body: (Paragraph | Table)[] = [];
+  let split = -1; // 2단이 시작되는 위치
   for (const node of [...sheet.childNodes]) {
     if (node instanceof HTMLElement) {
+      if (node.dataset.colstart && split < 0) split = body.length;
+      // 예상문제 시험지 머리·끝맺음
+      if (node.matches(".xh-title, .xh-school, .xh-end")) {
+        const title = node.classList.contains("xh-title");
+        body.push(
+          new d.Paragraph({
+            children: inlineOf(node, { bold: true }),
+            alignment: d.AlignmentType.CENTER,
+            spacing: { before: title ? 160 : 60, after: title ? 160 : 60 },
+          }),
+        );
+        continue;
+      }
       // 예상문제: 정답·해설·출제 근거·경향 분석은 답지에만, 답 쓰는 줄은 시험지에만
       if (mode === "test" && node.matches(".ans, .exp, .src, .ana")) continue;
       if (node.classList.contains("wr")) {
@@ -231,12 +252,18 @@ export async function makeDocx(sheet: HTMLElement, mode: Mode): Promise<Blob> {
   const doc = new d.Document({
     title: mode === "key" ? "답지" : "시험지",
     styles: { default: { document: { run: { font: FONT, size: 21 } } } },
-    sections: [
-      {
-        properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1134, bottom: 1134, left: 1134, right: 1134 } } },
-        children: body,
-      },
-    ],
+    sections: (() => {
+      const page = { size: { width: 11906, height: 16838 }, margin: { top: 1134, bottom: 1134, left: 1134, right: 1134 } };
+      if (layout.columns !== 2 || split < 0) return [{ properties: { page }, children: body }];
+      // 머리는 한 단, 문항은 가운데 세로줄이 있는 2단
+      return [
+        { properties: { page }, children: split > 0 ? body.slice(0, split) : [new d.Paragraph("")] },
+        {
+          properties: { page, type: d.SectionType.CONTINUOUS, column: { count: 2, space: 567, separate: true } },
+          children: body.slice(split).length ? body.slice(split) : [new d.Paragraph("")],
+        },
+      ];
+    })(),
   });
   return d.Packer.toBlob(doc);
 }

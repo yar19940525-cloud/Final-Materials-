@@ -115,6 +115,38 @@ button:disabled{opacity:.5}
 .sheet.pq.test .ans,.sheet.pq.test .exp,.sheet.pq.test .src,.sheet.pq.test .ana{display:none}
 .sheet.pq.key .wr{display:none}
 
+/* 예상문제: 기출 시험지 모양 (A4 쪽 · 1/2단) */
+.design{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:10px;font-size:13px;color:var(--mut)}
+.design span{width:100%}
+.design select{font:inherit;font-size:13px;color:var(--fg);background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:5px 6px}
+.design label{display:flex;align-items:center;gap:4px}
+.sheet.paged{width:auto;padding:0;border:0;background:none;color:#111;font-size:13.5px;line-height:1.65}
+.sheet.f-serif{font-family:"Noto Serif KR","Nanum Myeongjo","AppleMyungjo","Batang",serif}
+.sheet.f-sans{font-family:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+.sheet.paged .page{width:794px;height:1123px;margin:0 auto 18px;background:#fff;border:1px solid #bbb;box-shadow:0 2px 10px rgba(0,0,0,.12);padding:42px 40px 16px;display:flex;flex-direction:column;overflow:hidden}
+.sheet.paged.exporting .page{border-color:#fff;box-shadow:none}
+.sheet.paged .pbody{flex:1;min-height:0;display:flex}
+.sheet.paged .col{flex:1;min-width:0;overflow:hidden}
+.sheet.paged .pbody.c2 .col:first-child{padding-right:14px;border-right:1px solid #222}
+.sheet.paged .pbody.c2 .col+.col{padding-left:14px}
+.sheet.paged .pfoot{text-align:center;font-size:11px;color:#444;padding-top:6px}
+.sheet.paged .blk{padding-bottom:16px}
+.sheet.paged .qn{margin:0 0 6px}
+.sheet.pq .pt{white-space:nowrap}
+.sheet.paged .xh{border-bottom:3px double #111;padding-bottom:8px;margin-bottom:14px}
+.sheet.paged .xh-row{display:flex;align-items:flex-end;gap:12px}
+.sheet.paged .xh-school{flex:1;margin:0;font-size:14px;font-weight:700}
+.sheet.paged table.xh-f{width:auto;table-layout:auto}
+.sheet.paged .xh-f th,.sheet.paged .xh-f td{min-width:48px;padding:2px 8px;font-size:12px;line-height:1.4}
+.sheet.paged .xh-f td{height:24px}
+.sheet.paged .xh-title{text-align:center;font-size:21px;font-weight:800;margin:12px 0 2px;letter-spacing:-.3px}
+.sheet.paged .xh-note{text-align:center;font-size:12px;margin:4px 0 0}
+.sheet.paged .xh-end{text-align:center;font-weight:700;margin-top:10px}
+.sheet.n-box .qn>b:first-child{display:inline-block;border:1.5px solid #111;padding:0 5px;line-height:1.35;margin-right:3px}
+.sheet.chi .chs{display:flex;flex-wrap:wrap;column-gap:18px;margin-left:1.2em}
+.sheet.chi .chs .ch{margin:1px 0}
+.sheet.paged:not(.bxon) .bx{border:0;padding:2px 0}
+
 @media print{
   body{background:#fff}main{padding:0;max-width:none}
   .card,h1,.sub,.msg,.tabs,.install,.install-tip,.nav{display:none!important}
