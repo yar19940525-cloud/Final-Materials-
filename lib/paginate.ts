@@ -52,7 +52,7 @@ export function paginate(sheet: HTMLElement, columns: 1 | 2) {
 
 // Word로 내보내기용: 쪽·단 배치를 풀어 머리 → 문항 순서의 평평한 문단 목록으로 만든다.
 // 2단 시작 지점(머리 다음)에는 data-colstart 표시를 단다.
-export function flatten(sheet: HTMLElement, inlineChoices: boolean): HTMLElement {
+export function flatten(sheet: HTMLElement, inlineChoices: boolean, numBox = false): HTMLElement {
   const out = document.createElement("div");
   const head = sheet.querySelector<HTMLElement>(".xh");
   if (head) {
@@ -60,6 +60,7 @@ export function flatten(sheet: HTMLElement, inlineChoices: boolean): HTMLElement
       if (el.classList.contains("xh-school") && !el.textContent?.trim()) continue;
       out.append(el.cloneNode(true));
     }
+    (out.lastElementChild as HTMLElement | null)?.classList.add("xh-last"); // 머리 아래 이중선
   }
   let first = true;
   for (const b of sheet.querySelectorAll<HTMLElement>(".blk")) {
@@ -70,13 +71,19 @@ export function flatten(sheet: HTMLElement, inlineChoices: boolean): HTMLElement
         if (inlineChoices) {
           const p = document.createElement("p");
           p.className = "ch";
+          // 선택지 하나는 중간에서 줄이 바뀌지 않게 (안의 띄어쓰기를 줄바꿈 없는 공백으로)
           chs.forEach((c, i) => {
-            if (i) p.append("    ");
-            p.append(...[...c.cloneNode(true).childNodes]);
+            if (i) p.append("\u2003\u2003"); // 선택지 사이: 넓은 공백 (여기서는 줄이 바뀔 수 있음)
+            const clone = c.cloneNode(true) as HTMLElement;
+            const walker = document.createTreeWalker(clone, NodeFilter.SHOW_TEXT);
+            for (let t = walker.nextNode(); t; t = walker.nextNode()) t.textContent = (t.textContent ?? "").replace(/ /g, "\u00a0");
+            p.append(...[...clone.childNodes]);
           });
           parts = [p];
         } else parts = chs.map((c) => c.cloneNode(true) as HTMLElement);
       } else parts = [el.cloneNode(true) as HTMLElement];
+      // 문항 번호 네모 칸: 맨 앞 <b>에 표시
+      if (numBox) for (const p of parts) if (p.classList.contains("qn")) p.querySelector(":scope > b:first-child")?.classList.add("nb");
       for (const p of parts) {
         if (first) p.dataset.colstart = "1";
         first = false;

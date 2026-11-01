@@ -180,7 +180,13 @@ export default function Predict() {
     setExporting(true);
     setMsg({ text: "Word 파일 만드는 중…" });
     try {
-      download(m === "key" ? "predict-answer-key.docx" : "predict-test.docx", await makeDocx(flatten(el, style.choiceLayout === "inline"), m, { columns: style.columns, serif: style.font === "serif" }));
+      download(m === "key" ? "predict-answer-key.docx" : "predict-test.docx", await makeDocx(flatten(el, style.choiceLayout === "inline", style.numStyle === "box"), m, {
+          columns: style.columns,
+          serif: style.font === "serif",
+          exam: true,
+          boxPassage: style.boxPassage,
+        }),
+      );
       setMsg({ text: "Word 저장 완료!" });
     } catch (e) {
       setMsg({ text: `Word 실패: ${e instanceof Error ? e.message : e}`, err: true });
