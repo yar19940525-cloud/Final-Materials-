@@ -62,7 +62,8 @@ export async function makeDocx(sheet: HTMLElement, mode: Mode, layout: DocxLayou
 
   const run = (text: string, s: Style): TextRun =>
     new d.TextRun({
-      text: s.hidden ? BLANK : text,
+      // 가린 정답은 답 길이에 맞춘 빈칸(밑줄 친 줄바꿈 없는 공백)으로
+      text: s.hidden ? (text.trim() ? "\u00a0".repeat(Math.max(8, Math.round(text.length * 1.7))) : BLANK) : text,
       bold: s.bold,
       italics: s.italics,
       underline: s.underline ? { type: d.UnderlineType.SINGLE } : undefined,
@@ -143,6 +144,14 @@ export async function makeDocx(sheet: HTMLElement, mode: Mode, layout: DocxLayou
         spacing: { before: big ? 120 : 0, after: big ? 80 : 200 },
       });
     }
+    // 대화문 빈칸: 과 제목은 화면처럼 어두운 막대
+    if (el.tagName === "H2" && el.classList.contains("lesson"))
+      return new d.Paragraph({
+        children: inlineOf(el, { bold: true, color: "FFFFFF" }),
+        shading: { type: d.ShadingType.CLEAR, fill: "333333", color: "auto" },
+        keepNext: true,
+        spacing: { before: 320, after: 100 },
+      });
     if (el.tagName === "H2" || el.tagName === "H3")
       return new d.Paragraph({
         children: inlineOf(el, { bold: true }),
@@ -234,7 +243,10 @@ export async function makeDocx(sheet: HTMLElement, mode: Mode, layout: DocxLayou
             const { c, cs } = placed.get(cell)!;
             // 제목 칸·짧은 값은 가운데, 긴 글(설명·여러 줄)은 왼쪽 정렬
             const text = (cell.textContent ?? "").trim();
-            const left = !isTh && !el.classList.contains("hd") && (text.length > 14 || !!cell.querySelector("br, p"));
+            const left =
+              !isTh &&
+              !el.classList.contains("hd") &&
+              ((el.classList.contains("dlg") && c >= 1) || text.length > 14 || !!cell.querySelector("br, p")); // 대화문 표는 영어·우리말 칸 왼쪽 정렬
             return new d.TableCell({
               borders,
               width: { size: widths.slice(c, c + cs).reduce((a, b) => a + b, 0), type: d.WidthType.DXA },

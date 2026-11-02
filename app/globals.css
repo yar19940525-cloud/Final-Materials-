@@ -164,6 +164,16 @@ button:disabled{opacity:.5}
 .sheet.ana-doc td{text-align:left}
 .sheet.ana-doc td:first-child{text-align:center}
 
+/* 대표 대화문 빈칸 */
+.sheet.dlgs .xt{text-align:center;font-size:22px;font-weight:800;margin:4px 0 10px}
+.sheet.dlgs h2.lesson{font-size:15px;margin:22px 0 6px;padding:4px 10px;background:#333;color:#fff}
+.sheet.dlgs table.dlg th:nth-child(1){width:9%}
+.sheet.dlgs table.dlg th:nth-child(2){width:53%}
+.sheet.dlgs table.dlg td{text-align:left;font-size:14px;line-height:1.9;padding:4px 8px}
+.sheet.dlgs table.dlg td:first-child{text-align:center;font-weight:700}
+.sheet.dlgs table.dlg td:nth-child(3){color:#444;font-size:13px;line-height:1.6}
+.sheet.dlgs .f{min-width:4.5em}
+
 /* 진행 막대 */
 .prog{position:relative;height:22px;border-radius:999px;background:var(--bd);overflow:hidden;margin-top:10px}
 .prog-bar{height:100%;background:var(--ac);border-radius:999px;transition:width .4s ease}
