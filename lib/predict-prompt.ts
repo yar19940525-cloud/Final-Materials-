@@ -13,7 +13,21 @@ export interface PredictOptions {
   level: "기본" | "중간" | "상" | "최상";
   note: string; // 선생님 추가 요청
   quality: Quality; // 품질/비용 모드
+  variant?: Variant; // 직보예상문제 / 학프예상문제
+  areas?: Record<Area, number>; // 학프: 영역별 문항 수
 }
+
+// 탭 종류: 직보예상문제(기출 경향 + 직보·프린트) / 학프예상문제(학프 → 영역별)
+export type Variant = "jikbo" | "hakpeu";
+// 학프예상문제의 영역 (이 순서대로 시험지에 나온다)
+export const AREAS = ["어법", "어휘", "독해", "서술형"] as const;
+export type Area = (typeof AREAS)[number];
+const AREA_GUIDE: Record<Area, string> = {
+  어법: "학프의 문법 포인트로 객관식 (어법상 틀린/옳은 것, 어법 판단 (A)(B)(C), 쓰임이 같은/다른 것 등)",
+  어휘: "학프의 단어·표현으로 객관식 (영영풀이, 문맥상 알맞은/어색한 낱말, 같은 의미, 철자 등)",
+  독해: "학프의 지문·대화문으로 객관식 (내용 일치, 주제·제목, 빈칸, 순서 배열, 문장 삽입, 흐름과 무관한 문장, 지칭 대상 등)",
+  서술형: "학프 내용으로 서술형 (조건 영작, 어법상 틀린 곳 고쳐 쓰기, 우리말에 맞게 배열, 요약문 완성 등)",
+};
 
 // 품질/비용 모드: 고품질 = Opus, 표준 = Sonnet, 절약 = Haiku
 export type Quality = "high" | "standard" | "saver";
@@ -29,6 +43,7 @@ export interface PlanItem {
   topic: string; // 무엇을 묻는지 (프린트의 어느 내용)
   basis: string; // 출제 근거 (기출 경향·기출 n번 변형 등)
   level: string;
+  area?: string; // 학프: 어법/어휘/독해/서술형 (직보는 "")
 }
 
 // 기출 시험지에서 읽어 낸 디자인 (예상문제 시험지에 그대로 입힌다)
@@ -76,14 +91,25 @@ const ROLE_GUIDE = `자료는 세 종류야.
 - 학교 프린트: 이번 시험 범위의 수업 자료. 예상문제의 내용(지문·개념·예문)은 반드시 여기서 가져와.
 없는 종류의 자료는 나머지 자료로 판단해.`;
 
+// 학프예상문제: 영역별 출제 계획 지시 (1·2번 항목)
+function hakpeuPlan(o: PredictOptions): string {
+  const areas = AREAS.filter((a) => (o.areas?.[a] ?? 0) > 0);
+  return `1. analysis: 학프(학교 프린트)에서 시험에 꼭 나올 핵심(문법 포인트, 중요 어휘, 핵심 지문 내용)을 5~8줄로 정리해. 줄마다 "- "로 시작하고 줄바꿈(\\n)으로 구분.
+2. items: 아래 영역별 문항 수를 정확히 지켜 모두 ${o.count}문항의 출제 계획. items는 영역 순서(${areas.join(" → ")})대로 나열하고, 각 item의 area에 영역 이름을 그대로 적어. 난이도는 전체적으로 "${o.level}" 수준.
+${areas.map((a) => `   - ${a} ${o.areas![a]}문항: ${AREA_GUIDE[a]}${a === "서술형" ? " → type은 \"서술형\"" : " → type은 \"객관식\""}`).join("\n")}
+   - 모든 문항은 학프에 실린 내용(지문·예문·문법 설명·어휘)으로만 만들어. 학프 안의 여러 부분을 고르게 다뤄.
+   - 기출 시험지가 있으면 그 학교의 발문·선택지 스타일을 참고해.`;
+}
+
 export function planPrompt(o: PredictOptions): string {
   const mc = Math.round((o.count * o.mcRatio) / 100);
+  const hakpeu = o.variant === "hakpeu";
   return `너는 한국 중·고등학교 내신 시험 출제 전문가야. 첨부한 자료로 이번 시험의 예상문제 출제 계획을 세워.
 ${ROLE_GUIDE}
 
 할 일:
-1. analysis: 기출분석·기출문제에서 읽어 낸 이 학교의 출제 경향을 5~8줄로 요약해 (자주 나오는 유형, 선호하는 함정, 서술형 조건, 학교 프린트에서 특히 나올 만한 부분). 줄마다 "- "로 시작하고 줄바꿈(\\n)으로 구분.
-2. items: 정확히 ${o.count}문항의 출제 계획. 객관식 약 ${mc}문항, 나머지는 서술형/단답형. 난이도는 전체적으로 "${o.level}" 수준에 맞춰.
+${hakpeu ? hakpeuPlan(o) : `1. analysis: 기출분석·기출문제에서 읽어 낸 이 학교의 출제 경향을 5~8줄로 요약해 (자주 나오는 유형, 선호하는 함정, 서술형 조건, 학교 프린트에서 특히 나올 만한 부분). 줄마다 "- "로 시작하고 줄바꿈(\\n)으로 구분.
+2. items: 정확히 ${o.count}문항의 출제 계획. 객관식 약 ${mc}문항, 나머지는 서술형/단답형. 난이도는 전체적으로 "${o.level}" 수준에 맞춰. 각 item의 area는 ""로 둬.`}
    - 학교 프린트의 내용을 고르게 다루되, 기출 경향상 출제 가능성이 높은 부분에 더 많이 배정해.
    - 문항끼리 묻는 내용이 겹치지 않게 해.
    - topic: 프린트의 어느 내용(지문 단락·개념·예문 등)을 어떤 방식으로 묻는지 구체적으로 한두 문장.
@@ -140,13 +166,14 @@ export const PLAN_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["no", "type", "topic", "basis", "level"],
+        required: ["no", "type", "topic", "basis", "level", "area"],
         properties: {
           no: { type: "integer" },
           type: { type: "string" },
           topic: { type: "string" },
           basis: { type: "string" },
           level: { type: "string" },
+          area: { type: "string" },
         },
       },
     },
@@ -158,7 +185,7 @@ export function writePrompt(o: PredictOptions, items: PlanItem[], pointExample =
 ${ROLE_GUIDE}
 
 출제 계획 (이 문항들만, 적힌 번호 표기 그대로 만들어):
-${items.map((i) => `번호 "${i.num || i.no + "."}" [${i.type}/${i.level}] ${i.topic} (근거: ${i.basis})`).join("\n")}
+${items.map((i) => `번호 "${i.num || i.no + "."}" [${i.area ? i.area + "/" : ""}${i.type}/${i.level}] ${i.topic} (근거: ${i.basis})`).join("\n")}
 ${o.note ? `\n선생님 추가 요청 (최우선 반영): ${o.note}\n` : ""}
 문제 작성 원칙:
 - 지문·예문·개념은 학교 프린트에서 정확히 가져와 (철자·문장 그대로). 프린트에 없는 내용을 지어내지 마.

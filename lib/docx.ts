@@ -305,6 +305,14 @@ export async function makeDocx(sheet: HTMLElement, mode: Mode, layout: DocxLayou
       return new d.Paragraph({ children: inlineOf(el, { bold: true }), alignment: d.AlignmentType.CENTER, spacing: { before: 240 } });
     if (mode === "test" && el.matches(".ans, .exp, .src, .ana")) return null;
     // 발문·지문은 다음 문단과 같은 단에 붙여 문항이 단·쪽 경계에서 끊기지 않게 한다
+    // 학프 영역 제목 (Ⅰ. 어법 …): 굵게 + 아래 굵은 선, 다음 문항과 붙여 둔다
+    if (c.contains("area"))
+      return new d.Paragraph({
+        children: inlineOf(el, { bold: true, size: 24 }),
+        keepNext: true,
+        spacing: { before: 360, after: 160 },
+        border: { bottom: { style: d.BorderStyle.SINGLE, size: 12, color: "111111", space: 2 } },
+      });
     if (c.contains("set"))
       return new d.Paragraph({ children: inlineOf(el, { bold: true }), keepNext: true, keepLines: true, spacing: { before: 320, after: 100 } });
     if (c.contains("qn")) return new d.Paragraph({ children: inlineOf(el), keepNext: true, keepLines: true, spacing: { before: 320, after: 100, line: 320 } });

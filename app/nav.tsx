@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 
 const TABS = [
   { href: "/", label: "📄 시험지·답지 변환" },
-  { href: "/predict", label: "🎯 예상문제" },
+  { href: "/predict", label: "🎯 직보예상문제" },
+  { href: "/hakpeu", label: "📘 학프예상문제" },
   { href: "/analysis", label: "📊 기출분석 자료" },
   { href: "/cheer", label: "📣 응원 메시지" },
 ];

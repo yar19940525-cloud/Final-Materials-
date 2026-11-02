@@ -1,7 +1,7 @@
 // 예상문제 만들기 (브라우저): 1) 출제 계획을 세우고 2) 5문항씩 나눠 병렬로 문제를 만든 뒤 번호순으로 이어 붙인다.
 // 한 번에 수십 문항을 만들면 AI 출력 한도·서버 시간 제한에 걸리므로 나눠서 요청한다.
 import { clean, shrink } from "./client";
-import { DEFAULT_STYLE, type ExamStyle, type Plan, type PlanItem, type PredictOptions, type Role } from "./predict-prompt";
+import { AREAS, DEFAULT_STYLE, type ExamStyle, type Plan, type PlanItem, type PredictOptions, type Role } from "./predict-prompt";
 
 const PROTOCOL = "1"; // app/api/predict/route.ts의 PROTOCOL과 같아야 함
 const BATCH = 5;
@@ -22,6 +22,7 @@ interface Prepared {
   name: string;
 }
 
+const ROMAN = ["Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ"];
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const esc = (s: string) => s.replace(/[<>&"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" })[c]!);
 
@@ -146,7 +147,18 @@ export async function makePlan(files: Prepared[], opts: PredictOptions, onChars:
   }
   if (!Array.isArray(plan.items) || !plan.items.length) throw new Error("출제 계획이 비어 있어요.");
   plan.style = normalizeStyle(plan.style);
-  plan.items = numberItems(plan.items.slice(0, opts.count), plan.style);
+  let items = plan.items.slice(0, opts.count);
+  // 학프: 영역 순서(어법 → 어휘 → 독해 → 서술형)로 정렬 (같은 영역 안에서는 계획 순서 유지)
+  if (opts.variant === "hakpeu") {
+    const rank = (it: PlanItem) => {
+      const k = AREAS.findIndex((a) => it.area?.includes(a));
+      return k < 0 ? AREAS.length : k;
+    };
+    items = items.map((it, i) => ({ it, i })).sort((a, b) => rank(a.it) - rank(b.it) || a.i - b.i).map((x) => x.it);
+    // 영역에 맞춰 유형을 고정 (서술형 영역만 서술형) — 번호 매길 때 영역 순서가 섞이지 않게
+    items = items.map((it) => ({ ...it, type: it.area?.includes("서술형") ? "서술형" : "객관식" }));
+  }
+  plan.items = numberItems(items, plan.style);
   return plan;
 }
 
@@ -157,8 +169,19 @@ export async function writeQuestions(
   pointExample: string,
   onProgress: (done: number, total: number, chars: number) => void,
 ): Promise<{ html: string; failed: number }> {
+  // 영역(학프)이 바뀌거나 5문항이 차면 새 묶음. 영역의 첫 묶음 앞에는 영역 제목을 붙인다.
   const batches: PlanItem[][] = [];
-  for (let i = 0; i < items.length; i += BATCH) batches.push(items.slice(i, i + BATCH));
+  const heads: string[] = [];
+  const areaCount = (area: string) => items.filter((x) => x.area === area).length;
+  let areaNo = 0;
+  for (const it of items) {
+    const last = batches[batches.length - 1];
+    const newArea = !!it.area && it.area !== last?.[last.length - 1]?.area;
+    if (!last || last.length >= BATCH || newArea) {
+      batches.push([it]);
+      heads.push(newArea ? `<p class="area">${ROMAN[areaNo++] ?? ""}. ${esc(it.area!)} (${areaCount(it.area!)}문항)</p>` : "");
+    } else last.push(it);
+  }
   const results: string[] = new Array(batches.length);
   const live = new Map<number, number>();
   let done = 0, failed = 0, next = 0;
@@ -174,10 +197,10 @@ export async function writeQuestions(
           report();
         }),
       );
-      if ("text" in r) results[i] = clean(r.text);
+      if ("text" in r) results[i] = heads[i] + clean(r.text);
       else {
         failed++;
-        results[i] = `<p class="fail">⚠ ${b[0].num}~${b[b.length - 1].num} 만들기 실패: ${esc(r.error)} (“다시 만들기”로 재시도하세요)</p>`;
+        results[i] = heads[i] + `<p class="fail">⚠ ${b[0].num}~${b[b.length - 1].num} 만들기 실패: ${esc(r.error)} (“다시 만들기”로 재시도하세요)</p>`;
       }
       live.delete(i);
       done++;
@@ -191,7 +214,7 @@ export async function writeQuestions(
 
 // 시험지 = 머리(학교·제목·학년반번호이름 칸·안내문) + 출제 경향(답지에만) + 문항 블록들.
 // 문항은 <div class="blk">로 묶어 두고, 화면에서 이 블록 단위로 쪽·단에 배치한다 (lib/paginate.ts).
-export function assemble(title: string, plan: Plan, questions: string): string {
+export function assemble(title: string, plan: Plan, questions: string, heading = "📊 출제 경향 분석"): string {
   const st = plan.style;
   const head =
     `<div class="xh">` +
@@ -207,7 +230,7 @@ export function assemble(title: string, plan: Plan, questions: string): string {
     .map((l) => l.replace(/^\s*[-•]\s*/, "").trim())
     .filter(Boolean);
   const ana =
-    `<div class="blk ana"><h2 class="ana">📊 출제 경향 분석</h2>` +
+    `<div class="blk ana"><h2 class="ana">${esc(heading)}</h2>` +
     lines.map((l) => `<p class="ana">• ${esc(l)}</p>`).join("") +
     `</div>`;
 
@@ -235,16 +258,17 @@ export function assemble(title: string, plan: Plan, questions: string): string {
       el.classList.contains("set") ||
       (el.tagName === "P" && !el.className && /^\s*\[\s*\d+\s*[~∼\-–]\s*\d+\s*\]/.test(el.textContent ?? ""));
     if (isSet) el.className = "set";
+    const isArea = el.classList.contains("area"); // 학프 영역 제목 (Ⅰ. 어법 …)
     // 묶음 안내문·지문 바로 뒤의 첫 문항은 같은 블록에 넣어 안내문·지문·문항이 떨어지지 않게 한다
     const joinSet = el.classList.contains("qn") && cur?.dataset.set === "open";
     if (joinSet && cur) {
       cur.dataset.set = "done";
       chs = null;
       inBody = true;
-    } else if (!cur || isSet || el.classList.contains("qn") || el.classList.contains("fail")) {
+    } else if (!cur || isSet || isArea || el.classList.contains("qn") || el.classList.contains("fail")) {
       cur = doc.createElement("div");
       cur.className = "blk";
-      if (isSet) cur.dataset.set = "open";
+      if (isSet || isArea) cur.dataset.set = "open";
       blocks.push(cur);
       chs = null;
       inBody = isSet || el.classList.contains("qn");

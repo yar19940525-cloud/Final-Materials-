@@ -95,6 +95,8 @@ button:disabled{opacity:.5}
 .opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .opts label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mut)}
 .opts .wide{grid-column:1/-1}
+.areas{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
+.areas>span{grid-column:1/-1;font-size:13px;color:var(--mut)}
 .opts input,.opts select,.opts textarea{font:inherit;font-size:14px;color:var(--fg);background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:8px}
 .opts textarea{resize:vertical}
 
@@ -105,6 +107,7 @@ button:disabled{opacity:.5}
 .sheet.pq .bx + .bx{border-top:0;padding-top:0}
 .sheet.pq .bx:has(+ .bx){border-bottom:0;padding-bottom:0} /* 이어지는 지문 줄들은 한 상자로 */
 .sheet.pq .set{font-weight:700;margin:0 0 6px}
+.sheet.pq .area{font-weight:800;font-size:15px;border-bottom:2px solid #111;padding:2px 0 3px;margin:0 0 12px}
 .sheet.pq .bx + .qn{margin-top:12px}
 .sheet.pq .ch{margin:2px 0 2px 1.2em}
 .sheet.pq .wr{height:0;border-bottom:1px solid #999;margin:30px 0 4px}

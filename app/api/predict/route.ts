@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { diagnose403 } from "@/lib/diagnose";
 import {
+  AREAS,
   PLAN_SCHEMA,
   planPrompt,
   ROLE_LABEL,
@@ -35,6 +36,10 @@ function readOptions(raw: unknown): PredictOptions {
     level,
     note: String(o.note ?? "").slice(0, 1000),
     quality: o.quality === "high" || o.quality === "saver" ? o.quality : "standard",
+    variant: o.variant === "hakpeu" ? "hakpeu" : "jikbo",
+    areas: Object.fromEntries(
+      AREAS.map((a) => [a, Math.min(20, Math.max(0, Math.round(Number(o.areas?.[a]) || 0)))]),
+    ) as PredictOptions["areas"],
   };
 }
 
@@ -47,6 +52,7 @@ function readItems(raw: unknown): PlanItem[] {
     topic: String(i?.topic ?? "").slice(0, 600),
     basis: String(i?.basis ?? "").slice(0, 400),
     level: String(i?.level ?? "").slice(0, 20),
+    area: String(i?.area ?? "").slice(0, 10),
   }));
 }
 
