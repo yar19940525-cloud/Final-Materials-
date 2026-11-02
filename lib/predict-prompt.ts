@@ -34,7 +34,7 @@ export type Quality = "high" | "standard" | "saver";
 export const QUALITY_LABEL: Record<Quality, string> = {
   high: "고품질 (약 1,000원)",
   standard: "표준 (약 300~400원)",
-  saver: "절약 (약 30원)",
+  saver: "절약 · 기본 (약 30원)",
 };
 export interface PlanItem {
   no: number;

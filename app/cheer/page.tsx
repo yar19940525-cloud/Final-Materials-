@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Nav from "../nav";
+import Progress, { useProgress } from "../progress";
+import { byChars } from "@/lib/progress";
 import { FileSlot, useSlotFiles } from "../file-slot";
 import { prepareFiles, runAI } from "@/lib/ai-client";
 import type { CheerOptions } from "@/lib/cheer-prompt";
@@ -20,9 +22,10 @@ const DEFAULTS: CheerOptions = {
 export default function Cheer() {
   const slot = useSlotFiles(10);
   const [opts, setOpts] = useState<CheerOptions>(DEFAULTS);
-  const [quality, setQuality] = useState<Quality>("standard");
+  const [quality, setQuality] = useState<Quality>("saver");
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const prog = useProgress(0.15);
   const [msg, setMsg] = useState<{ text: string; err?: boolean }>({ text: "" });
 
   // 학교·선생님·링크 같은 설정은 이 기기에 기억해 둔다
@@ -47,17 +50,22 @@ export default function Cheer() {
   async function generate() {
     if (!hasNotes || busy) return;
     setBusy(true);
+    prog.start();
     setMsg({ text: "직보 자료를 읽고 응원 메시지를 쓰는 중…" });
     setText("");
     try {
       const files = await prepareFiles(slot.files.map((f) => ({ role: f.role, file: f.file })));
-      const r = await runAI("/api/cheer", files, { options: JSON.stringify({ ...opts, quality }) }, setText);
+      const r = await runAI("/api/cheer", files, { options: JSON.stringify({ ...opts, quality }) }, (t) => {
+        setText(t);
+        prog.set(byChars(t.length, 1300)); // 응원 문자는 보통 1,000~1,500자
+      });
       setText(r.text.trim());
       setMsg(r.truncated ? { text: "중간에 끊겼어요. 다시 만들어 보세요.", err: true } : { text: "완료! 내용을 고친 뒤 📋 복사해서 보내세요." });
     } catch (e) {
       setMsg({ text: `실패: ${e instanceof Error ? e.message : e}`, err: true });
     } finally {
       setBusy(false);
+      prog.stop();
     }
   }
 
@@ -97,7 +105,7 @@ export default function Cheer() {
           <label>
             품질 · 비용
             <select value={quality} onChange={(e) => setQuality(e.target.value as Quality)}>
-              {(["standard", "high", "saver"] as const).map((q) => (
+              {(["saver", "standard", "high"] as const).map((q) => (
                 <option key={q} value={q}>{QUALITY_LABEL[q].replace(/ \(.*\)/, "")}</option>
               ))}
             </select>
@@ -121,6 +129,7 @@ export default function Cheer() {
           </button>
         </div>
         {!hasNotes && <p className="hint">직보 자료를 올리면 시작할 수 있어요.</p>}
+        <Progress value={prog.value} />
         <div className={"msg" + (msg.err ? " err" : "")}>{msg.text}</div>
       </div>
 

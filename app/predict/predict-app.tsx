@@ -1,6 +1,8 @@
 "use client";
 
 import Nav from "../nav";
+import Progress, { useProgress } from "../progress";
+import { byChars } from "@/lib/progress";
 import { useEffect, useRef, useState } from "react";
 import { download, makePagesPdf } from "@/lib/client";
 import { makeDocx } from "@/lib/docx";
@@ -51,10 +53,11 @@ export default function PredictApp({ variant }: { variant: Variant }) {
   const SLOTS = V.slots;
   const [items, setItems] = useState<Item[]>([]);
   const [previewId, setPreviewId] = useState<number | null>(null);
-  const [opts, setOpts] = useState<PredictOptions>({ count: 20, mcRatio: 70, level: "중간", note: "", quality: "standard", variant, areas: DEFAULT_AREAS });
+  const [opts, setOpts] = useState<PredictOptions>({ count: 20, mcRatio: 70, level: "중간", note: "", quality: "saver", variant, areas: DEFAULT_AREAS });
   const [title, setTitle] = useState("");
   const [msg, setMsg] = useState<{ text: string; err?: boolean }>({ text: "" });
   const [busy, setBusy] = useState(false);
+  const prog = useProgress(0.08);
   const [exporting, setExporting] = useState(false);
   const [html, setHtml] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("test");
@@ -120,6 +123,7 @@ export default function PredictApp({ variant }: { variant: Variant }) {
   async function generate() {
     if (!hasPrint || busy) return;
     setBusy(true);
+    prog.start();
     setMsg({ text: "파일을 준비하는 중…" });
     const t0 = Date.now();
     const sec = () => Math.round((Date.now() - t0) / 1000);
@@ -128,11 +132,20 @@ export default function PredictApp({ variant }: { variant: Variant }) {
       const o = variant === "hakpeu" ? { ...opts, count: areaTotal } : opts;
       setMsg({ text: "1단계: 자료를 분석하고 출제 계획을 세우는 중… (1~2분)" });
       const plan = await makePlan(files, o, (n) =>
-        setMsg({ text: `1단계: 자료 분석·출제 계획 중… (${n.toLocaleString()}자, ${sec()}초)` }),
+        {
+          setMsg({ text: `1단계: 자료 분석·출제 계획 중… (${n.toLocaleString()}자, ${sec()}초)` });
+          prog.set(0.15 * byChars(n, 180 * o.count + 800)); // 계획 단계 = 전체의 15%
+        },
       );
+      prog.set(0.15);
       setMsg({ text: `2단계: ${plan.items.length}문항을 만드는 중…` });
       const { html: qs, failed } = await writeQuestions(files, o, plan.items, plan.style.pointExample, (done, total, chars) =>
-        setMsg({ text: `2단계: 문제 만드는 중… ${done}/${total} 묶음 완료 (${chars.toLocaleString()}자, ${sec()}초)` }),
+        {
+          setMsg({ text: `2단계: 문제 만드는 중… ${done}/${total} 묶음 완료 (${chars.toLocaleString()}자, ${sec()}초)` });
+          // 문항 작성 단계 = 나머지 85%: 끝난 묶음 + 진행 중인 묶음(묶음당 약 3,500자로 어림)
+          const inflight = Math.min(3, total - done);
+          prog.set(0.15 + 0.85 * Math.min(1, (done + Math.min(inflight * 0.9, chars / 3500)) / total));
+        },
       );
       setMode("test");
       setStyle(plan.style);
@@ -146,6 +159,7 @@ export default function PredictApp({ variant }: { variant: Variant }) {
       setMsg({ text: `실패: ${e instanceof Error ? e.message : e} 다시 시도해 주세요.`, err: true });
     } finally {
       setBusy(false);
+      prog.stop();
     }
   }
 
@@ -308,7 +322,7 @@ export default function PredictApp({ variant }: { variant: Variant }) {
           <label>
             품질 · 비용 (20문항 기준)
             <select value={opts.quality} onChange={(e) => set("quality", e.target.value as Quality)}>
-              {(["standard", "high", "saver"] as const).map((q) => <option key={q} value={q}>{QUALITY_LABEL[q]}</option>)}
+              {(["saver", "standard", "high"] as const).map((q) => <option key={q} value={q}>{QUALITY_LABEL[q]}</option>)}
             </select>
           </label>
           <label className="wide">
@@ -327,6 +341,7 @@ export default function PredictApp({ variant }: { variant: Variant }) {
           </button>
         </div>
         {!hasPrint && <p className="hint">{V.needHint}</p>}
+        <Progress value={prog.value} />
         <div className={"msg" + (msg.err ? " err" : "")}>{msg.text}</div>
       </div>
 

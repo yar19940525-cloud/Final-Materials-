@@ -1,6 +1,7 @@
 "use client";
 
 import Nav from "./nav";
+import Progress, { useProgress } from "./progress";
 import { useEffect, useRef, useState } from "react";
 import { download, makePdf } from "@/lib/client";
 import { buildUnits, convertUnits, countPages, MAX_TOTAL_PAGES } from "@/lib/convert";
@@ -22,6 +23,7 @@ export default function Home() {
   const [previewId, setPreviewId] = useState<number | null>(null);
   const [msg, setMsg] = useState<{ text: string; err?: boolean }>({ text: "" });
   const [busy, setBusy] = useState(false);
+  const prog = useProgress();
   const [pdfBusy, setPdfBusy] = useState(false);
   const [html, setHtml] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("test");
@@ -79,6 +81,7 @@ export default function Home() {
   async function convert() {
     if (!items.length) return;
     setBusy(true);
+    prog.start();
     setMsg({ text: "파일을 준비하는 중…" });
     try {
       const units = await buildUnits(items.map((i) => i.file));
@@ -89,6 +92,9 @@ export default function Home() {
       const { html, failed } = await convertUnits(units, (done, total, chars) => {
         const sec = Math.round((Date.now() - t0) / 1000);
         setMsg({ text: `변환 중… ${done}/${total} 조각 완료 (${chars.toLocaleString()}자 생성 중, ${sec}초)` });
+        // 끝난 조각 + 진행 중인 조각(조각당 약 4,000자로 어림)
+        const inflight = Math.min(3, total - done);
+        prog.set((done + Math.min(inflight * 0.9, chars / 4000)) / total);
       });
       setMode("test");
       setHtml(html);
@@ -101,6 +107,7 @@ export default function Home() {
       setMsg({ text: `실패: ${e instanceof Error ? e.message : e} 다시 시도해 주세요.`, err: true });
     } finally {
       setBusy(false);
+      prog.stop();
     }
   }
 
@@ -173,6 +180,7 @@ export default function Home() {
             시험지 · 답지 만들기{items.length > 1 ? ` (${items.length}개 파일)` : ""}
           </button>
         </div>
+        <Progress value={prog.value} />
         <div className={"msg" + (msg.err ? " err" : "")}>{msg.text}</div>
       </div>
 

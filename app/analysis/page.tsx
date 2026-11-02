@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Nav from "../nav";
+import Progress, { useProgress } from "../progress";
+import { byChars } from "@/lib/progress";
 import { FileSlot, useSlotFiles } from "../file-slot";
 import { prepareFiles, runAI } from "@/lib/ai-client";
 import { clean, download, makePdf } from "@/lib/client";
@@ -12,9 +14,11 @@ export default function Analysis() {
   const slot = useSlotFiles(30);
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
-  const [quality, setQuality] = useState<Quality>("standard");
+  const [quality, setQuality] = useState<Quality>("saver");
   const [html, setHtml] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const prog = useProgress(0.12);
+  const smsProg = useProgress(0.15);
   const [exporting, setExporting] = useState(false);
   const [msg, setMsg] = useState<{ text: string; err?: boolean }>({ text: "" });
   const [sms, setSms] = useState("");
@@ -42,16 +46,21 @@ export default function Analysis() {
     const el = sheetRef.current;
     if (!el || smsBusy) return;
     setSmsBusy(true);
+    smsProg.start();
     setSms("");
     setSmsMsg({ text: "분석 자료로 기출분석 문자를 쓰는 중…" });
     try {
-      const r = await runAI("/api/analysis-sms", [], { analysis: el.innerText, options: JSON.stringify({ quality }) }, setSms);
+      const r = await runAI("/api/analysis-sms", [], { analysis: el.innerText, options: JSON.stringify({ quality }) }, (t) => {
+        setSms(t);
+        smsProg.set(byChars(t.length, 1300));
+      });
       setSms(r.text.trim());
       setSmsMsg(r.truncated ? { text: "중간에 끊겼어요. 다시 만들어 보세요.", err: true } : { text: "완료! 내용을 고친 뒤 📋 복사해서 보내세요." });
     } catch (e) {
       setSmsMsg({ text: `문자 만들기 실패: ${e instanceof Error ? e.message : e}`, err: true });
     } finally {
       setSmsBusy(false);
+      smsProg.stop();
     }
   }
 
@@ -69,14 +78,17 @@ export default function Analysis() {
   async function generate() {
     if (!ready || busy) return;
     setBusy(true);
+    prog.start();
     const t0 = Date.now();
     setMsg({ text: "파일을 준비하는 중…" });
     try {
       const files = await prepareFiles(slot.files.map((f) => ({ role: f.role, file: f.file })));
       setMsg({ text: "시험지를 분석하고 샘플 양식에 맞춰 쓰는 중… (몇 분 걸릴 수 있어요)" });
-      const r = await runAI("/api/analysis", files, { options: JSON.stringify({ title: title.trim(), note: note.trim(), quality }) }, (t) =>
-        setMsg({ text: `분석 자료 쓰는 중… (${t.length.toLocaleString()}자, ${Math.round((Date.now() - t0) / 1000)}초)` }),
-      );
+      const exams = slot.files.filter((f) => f.role === "exam").length;
+      const r = await runAI("/api/analysis", files, { options: JSON.stringify({ title: title.trim(), note: note.trim(), quality }) }, (t) => {
+        setMsg({ text: `분석 자료 쓰는 중… (${t.length.toLocaleString()}자, ${Math.round((Date.now() - t0) / 1000)}초)` });
+        prog.set(byChars(t.length, 9000 * Math.max(1, exams))); // 시험지 1개당 HTML 약 9,000자로 어림
+      });
       setHtml(clean(r.text));
       makeSmsLater.current = true; // 화면에 분석 자료가 들어간 뒤 문자도 이어서 만든다
       setMsg(
@@ -88,6 +100,7 @@ export default function Analysis() {
       setMsg({ text: `실패: ${e instanceof Error ? e.message : e}`, err: true });
     } finally {
       setBusy(false);
+      prog.stop();
     }
   }
 
@@ -141,7 +154,7 @@ export default function Analysis() {
           <label>
             품질 · 비용
             <select value={quality} onChange={(e) => setQuality(e.target.value as Quality)}>
-              {(["standard", "high", "saver"] as const).map((q) => (
+              {(["saver", "standard", "high"] as const).map((q) => (
                 <option key={q} value={q}>{QUALITY_LABEL[q].replace(/ \(.*\)/, "")}</option>
               ))}
             </select>
@@ -157,6 +170,7 @@ export default function Analysis() {
           </button>
         </div>
         {!ready && <p className="hint">학교 시험지와 기출분석 샘플을 모두 올리면 시작할 수 있어요.</p>}
+        <Progress value={prog.value} />
         <div className={"msg" + (msg.err ? " err" : "")}>{msg.text}</div>
       </div>
 
@@ -184,6 +198,7 @@ export default function Analysis() {
           </div>
           <textarea className="cheer-out" value={sms} onChange={(e) => setSms(e.target.value)} readOnly={smsBusy} placeholder="기출분석 자료가 만들어지면 여기에 학생·학부모에게 보낼 요약 문자가 자동으로 만들어져요." />
           <p className="hint">위 분석 자료를 고쳤다면 “문자 다시 만들기”를 눌러 반영하세요. 문자 글도 바로 고칠 수 있어요.</p>
+          <Progress value={smsProg.value} />
           <div className={"msg" + (smsMsg.err ? " err" : "")}>{smsMsg.text}</div>
         </div>
       </div>

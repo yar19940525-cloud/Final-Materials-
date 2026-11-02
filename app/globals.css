@@ -164,9 +164,14 @@ button:disabled{opacity:.5}
 .sheet.ana-doc td{text-align:left}
 .sheet.ana-doc td:first-child{text-align:center}
 
+/* 진행 막대 */
+.prog{position:relative;height:22px;border-radius:999px;background:var(--bd);overflow:hidden;margin-top:10px}
+.prog-bar{height:100%;background:var(--ac);border-radius:999px;transition:width .4s ease}
+.prog-txt{position:absolute;inset:0;display:grid;place-items:center;font-size:12px;font-weight:700;color:var(--fg);mix-blend-mode:normal}
+
 @media print{
   body{background:#fff}main{padding:0;max-width:none}
-  .card,h1,.sub,.msg,.tabs,.install,.install-tip,.nav{display:none!important}
+  .card,h1,.sub,.msg,.tabs,.install,.install-tip,.nav,.prog{display:none!important}
   .scroller{overflow:visible}
   .sheet{width:100%;border:0;padding:0}
   .sheet .pagebreak{break-after:page;border:0;margin:0}
