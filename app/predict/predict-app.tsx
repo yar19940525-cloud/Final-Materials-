@@ -8,7 +8,7 @@ import { download, makePagesPdf } from "@/lib/client";
 import { makeDocx } from "@/lib/docx";
 import { assemble, makePlan, prepare, writeQuestions } from "@/lib/predict";
 import { flatten, paginate } from "@/lib/paginate";
-import { AREAS, DEFAULT_STYLE, QUALITY_LABEL, type Area, type Quality, type ExamStyle, type PredictOptions, type Role, type Variant } from "@/lib/predict-prompt";
+import { AREAS, DEFAULT_STYLE, type Area, type ExamStyle, type PredictOptions, type Role, type Variant } from "@/lib/predict-prompt";
 
 type Mode = "test" | "key";
 interface Item {
@@ -53,7 +53,7 @@ export default function PredictApp({ variant }: { variant: Variant }) {
   const SLOTS = V.slots;
   const [items, setItems] = useState<Item[]>([]);
   const [previewId, setPreviewId] = useState<number | null>(null);
-  const [opts, setOpts] = useState<PredictOptions>({ count: 20, mcRatio: 70, level: "중간", note: "", quality: "saver", variant, areas: DEFAULT_AREAS });
+  const [opts, setOpts] = useState<PredictOptions>({ count: 20, mcRatio: 70, level: "중간", note: "", variant, areas: DEFAULT_AREAS });
   const [title, setTitle] = useState("");
   const [msg, setMsg] = useState<{ text: string; err?: boolean }>({ text: "" });
   const [busy, setBusy] = useState(false);
@@ -317,12 +317,6 @@ export default function PredictApp({ variant }: { variant: Variant }) {
             난이도
             <select value={opts.level} onChange={(e) => set("level", e.target.value as PredictOptions["level"])}>
               {(["기본", "중간", "상", "최상"] as const).map((l) => <option key={l}>{l}</option>)}
-            </select>
-          </label>
-          <label>
-            품질 · 비용 (20문항 기준)
-            <select value={opts.quality} onChange={(e) => set("quality", e.target.value as Quality)}>
-              {(["saver", "standard", "high"] as const).map((q) => <option key={q} value={q}>{QUALITY_LABEL[q]}</option>)}
             </select>
           </label>
           <label className="wide">

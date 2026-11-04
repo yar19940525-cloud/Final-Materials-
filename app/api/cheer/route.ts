@@ -1,5 +1,5 @@
 import { cheerPrompt, type CheerOptions } from "@/lib/cheer-prompt";
-import { filesToContent, handle, readQuality, streamAI } from "@/lib/server-ai";
+import { filesToContent, handle, streamAI } from "@/lib/server-ai";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -20,6 +20,6 @@ export async function POST(req: Request) {
     };
     const content = await filesToContent(form, { notes: "직보 자료" }, ["notes"]);
     content.push({ type: "text", text: cheerPrompt(o) });
-    return streamAI(apiKey, readQuality(raw.quality), content, 16000);
+    return streamAI(apiKey, content, 16000);
   });
 }

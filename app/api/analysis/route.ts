@@ -1,5 +1,5 @@
 import { analysisPrompt } from "@/lib/analysis-prompt";
-import { filesToContent, handle, readQuality, streamAI } from "@/lib/server-ai";
+import { filesToContent, handle, streamAI } from "@/lib/server-ai";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -13,6 +13,6 @@ export async function POST(req: Request) {
       type: "text",
       text: analysisPrompt({ title: String(raw.title ?? "").trim().slice(0, 80), note: String(raw.note ?? "").trim().slice(0, 1000) }),
     });
-    return streamAI(apiKey, readQuality(raw.quality), content);
+    return streamAI(apiKey, content);
   });
 }

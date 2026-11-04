@@ -8,13 +8,11 @@ import { FileSlot, useSlotFiles } from "../file-slot";
 import { prepareFiles, runAI } from "@/lib/ai-client";
 import { clean, download, makePdf } from "@/lib/client";
 import { makeDocx } from "@/lib/docx";
-import { QUALITY_LABEL, type Quality } from "@/lib/predict-prompt";
 
 export default function Analysis() {
   const slot = useSlotFiles(30);
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
-  const [quality, setQuality] = useState<Quality>("saver");
   const [html, setHtml] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const prog = useProgress(0.12);
@@ -50,7 +48,7 @@ export default function Analysis() {
     setSms("");
     setSmsMsg({ text: "분석 자료로 기출분석 문자를 쓰는 중…" });
     try {
-      const r = await runAI("/api/analysis-sms", [], { analysis: el.innerText, options: JSON.stringify({ quality }) }, (t) => {
+      const r = await runAI("/api/analysis-sms", [], { analysis: el.innerText, options: JSON.stringify({}) }, (t) => {
         setSms(t);
         smsProg.set(byChars(t.length, 1300));
       });
@@ -85,7 +83,7 @@ export default function Analysis() {
       const files = await prepareFiles(slot.files.map((f) => ({ role: f.role, file: f.file })));
       setMsg({ text: "시험지를 분석하고 샘플 양식에 맞춰 쓰는 중… (몇 분 걸릴 수 있어요)" });
       const exams = slot.files.filter((f) => f.role === "exam").length;
-      const r = await runAI("/api/analysis", files, { options: JSON.stringify({ title: title.trim(), note: note.trim(), quality }) }, (t) => {
+      const r = await runAI("/api/analysis", files, { options: JSON.stringify({ title: title.trim(), note: note.trim() }) }, (t) => {
         setMsg({ text: `분석 자료 쓰는 중… (${t.length.toLocaleString()}자, ${Math.round((Date.now() - t0) / 1000)}초)` });
         prog.set(byChars(t.length, 9000 * Math.max(1, exams))); // 시험지 1개당 HTML 약 9,000자로 어림
       });
@@ -150,14 +148,6 @@ export default function Analysis() {
           <label className="wide">
             자료 제목 (선택)
             <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="비우면 샘플 형식대로 자동 (예: 2025 석우중 2학년 1학기 중간 영어 기출분석)" />
-          </label>
-          <label>
-            품질 · 비용
-            <select value={quality} onChange={(e) => setQuality(e.target.value as Quality)}>
-              {(["saver", "standard", "high"] as const).map((q) => (
-                <option key={q} value={q}>{QUALITY_LABEL[q].replace(/ \(.*\)/, "")}</option>
-              ))}
-            </select>
           </label>
           <label className="wide">
             추가 요청 (선택)

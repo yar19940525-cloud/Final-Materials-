@@ -7,7 +7,6 @@ import { byChars } from "@/lib/progress";
 import { FileSlot, useSlotFiles } from "../file-slot";
 import { prepareFiles, runAI } from "@/lib/ai-client";
 import type { CheerOptions } from "@/lib/cheer-prompt";
-import { QUALITY_LABEL, type Quality } from "@/lib/predict-prompt";
 
 const SAVE_KEY = "cheer-settings";
 const DEFAULTS: CheerOptions = {
@@ -22,7 +21,6 @@ const DEFAULTS: CheerOptions = {
 export default function Cheer() {
   const slot = useSlotFiles(10);
   const [opts, setOpts] = useState<CheerOptions>(DEFAULTS);
-  const [quality, setQuality] = useState<Quality>("saver");
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const prog = useProgress(0.15);
@@ -55,7 +53,7 @@ export default function Cheer() {
     setText("");
     try {
       const files = await prepareFiles(slot.files.map((f) => ({ role: f.role, file: f.file })));
-      const r = await runAI("/api/cheer", files, { options: JSON.stringify({ ...opts, quality }) }, (t) => {
+      const r = await runAI("/api/cheer", files, { options: JSON.stringify({ ...opts }) }, (t) => {
         setText(t);
         prog.set(byChars(t.length, 1300)); // 응원 문자는 보통 1,000~1,500자
       });
@@ -101,14 +99,6 @@ export default function Cheer() {
           <label>
             선생님 호칭
             <input value={opts.teacher} onChange={(e) => set("teacher", e.target.value)} placeholder="예: 아름쌤" />
-          </label>
-          <label>
-            품질 · 비용
-            <select value={quality} onChange={(e) => setQuality(e.target.value as Quality)}>
-              {(["saver", "standard", "high"] as const).map((q) => (
-                <option key={q} value={q}>{QUALITY_LABEL[q].replace(/ \(.*\)/, "")}</option>
-              ))}
-            </select>
           </label>
           <label className="wide">
             마지막 링크 제목

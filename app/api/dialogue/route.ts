@@ -1,5 +1,5 @@
 import { dialoguePrompt, type BlankLevel } from "@/lib/dialogue-prompt";
-import { filesToContent, handle, readQuality, streamAI } from "@/lib/server-ai";
+import { filesToContent, handle, streamAI } from "@/lib/server-ai";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -11,6 +11,6 @@ export async function POST(req: Request) {
     const level: BlankLevel = raw.level === "적게" || raw.level === "많이" ? raw.level : "보통";
     const content = await filesToContent(form, { dlg: "교과서 대화문" }, ["dlg"]);
     content.push({ type: "text", text: dialoguePrompt(level, String(raw.note ?? "").trim().slice(0, 1000)) });
-    return streamAI(apiKey, readQuality(raw.quality), content, 32000);
+    return streamAI(apiKey, content, 32000);
   });
 }

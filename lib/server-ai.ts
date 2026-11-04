@@ -2,7 +2,6 @@
 // 응답 규약은 lib/ai-client.ts와 같다: 결과 텍스트를 그대로 흘려보내고 끝에 \0OK / \0ERROR: / \0TRUNC: / \0RATE: 표식.
 import Anthropic from "@anthropic-ai/sdk";
 import { diagnose403 } from "./diagnose";
-import type { Quality } from "./predict-prompt";
 
 export const PROTOCOL = "1";
 const MAX_FILES = 30;
@@ -13,13 +12,9 @@ const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"] as co
 type ImageType = (typeof IMAGE_TYPES)[number];
 const isImageType = (t: string): t is ImageType => (IMAGE_TYPES as readonly string[]).includes(t);
 
-// 품질/비용 모드별 모델·생각 깊이 (예상문제 탭과 같은 기준)
-export const MODES: Record<Quality, { model: string; effort: "low" | "medium" | "high"; fallback: boolean }> = {
-  high: { model: "claude-opus-5-5", effort: "high", fallback: true },
-  standard: { model: "claude-sonnet-5-5", effort: "medium", fallback: true },
-  saver: { model: "claude-haiku-5-5", effort: "medium", fallback: false }, // Haiku는 서버 측 거절 대체 기능이 없다
-};
-export const readQuality = (v: unknown): Quality => (v === "high" || v === "saver" ? v : "standard");
+// 요금 절감: 모든 자료를 가장 싼 모델(Haiku)로만 만든다. 화면에서 다른 값을 보내도 무시한다.
+export const MODEL = "claude-haiku-5-5";
+export const EFFORT = "medium" as const;
 
 export class HttpError extends Error {
   constructor(message: string, public status: number) {
@@ -67,15 +62,13 @@ export async function filesToContent(
 }
 
 // Claude 응답을 스트리밍으로 돌려준다.
-export function streamAI(apiKey: string, quality: Quality, content: Anthropic.Beta.BetaContentBlockParam[], maxTokens = 64000): Response {
-  const mode = MODES[quality];
+export function streamAI(apiKey: string, content: Anthropic.Beta.BetaContentBlockParam[], maxTokens = 64000): Response {
   const client = new Anthropic({ apiKey });
   const stream = client.beta.messages.stream({
-    model: mode.model,
+    model: MODEL,
     max_tokens: maxTokens,
     thinking: { type: "adaptive" },
-    output_config: { effort: mode.effort },
-    ...(mode.fallback ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
+    output_config: { effort: EFFORT },
     messages: [{ role: "user", content }],
   });
 

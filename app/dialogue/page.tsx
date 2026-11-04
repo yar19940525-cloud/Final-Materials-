@@ -8,7 +8,6 @@ import { prepareFiles, runAI } from "@/lib/ai-client";
 import { clean, download, makePdf } from "@/lib/client";
 import { makeDocx } from "@/lib/docx";
 import type { BlankLevel } from "@/lib/dialogue-prompt";
-import { QUALITY_LABEL, type Quality } from "@/lib/predict-prompt";
 
 type Mode = "test" | "key";
 const CONCURRENCY = 3;
@@ -19,7 +18,6 @@ export default function Dialogue() {
   const [title, setTitle] = useState("");
   const [level, setLevel] = useState<BlankLevel>("보통");
   const [note, setNote] = useState("");
-  const [quality, setQuality] = useState<Quality>("saver");
   const [html, setHtml] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("test");
   const [busy, setBusy] = useState(false);
@@ -61,7 +59,7 @@ export default function Dialogue() {
           const i = next++;
           live.set(i, 0);
           try {
-            const r = await runAI("/api/dialogue", [files[i]], { options: JSON.stringify({ level, note: note.trim(), quality }) }, (t) => {
+            const r = await runAI("/api/dialogue", [files[i]], { options: JSON.stringify({ level, note: note.trim() }) }, (t) => {
               live.set(i, t.length);
               report();
             });
@@ -150,14 +148,6 @@ export default function Dialogue() {
               <option value="적게">적게 (핵심 표현만)</option>
               <option value="보통">보통</option>
               <option value="많이">많이</option>
-            </select>
-          </label>
-          <label>
-            품질 · 비용
-            <select value={quality} onChange={(e) => setQuality(e.target.value as Quality)}>
-              {(["saver", "standard", "high"] as const).map((q) => (
-                <option key={q} value={q}>{QUALITY_LABEL[q].replace(/ \(.*\)/, "")}</option>
-              ))}
             </select>
           </label>
           <label className="wide">
