@@ -1,6 +1,7 @@
 // 업로드한 파일을 작은 조각(사진 1장 / PDF 3페이지)으로 나눠 병렬로 변환하고 순서대로 이어 붙인다.
 // 한 번에 긴 문서를 보내면 AI 출력 한도(max_tokens)에서 잘리므로, 조각마다 별도 요청을 보낸다.
 import { PDFDocument } from "pdf-lib";
+import { authFetch } from "./auth-client";
 import { clean, embedFigures, shrink } from "./client";
 
 const CHUNK_PAGES = 3;
@@ -69,12 +70,13 @@ export function countPages(units: Unit[]): number {
   return units.reduce((n, u) => n + (u.pdf ? u.pdf.to - u.pdf.from : 1), 0);
 }
 
-async function request(u: Unit, onChars: (n: number) => void): Promise<Outcome> {
+async function request(u: Unit, onChars: (n: number) => void, jobId: string): Promise<Outcome> {
   try {
     const fd = new FormData();
     fd.append("v", "2"); // 서버 응답 규약 버전 (app/api/convert/route.ts의 PROTOCOL과 같아야 함)
+    fd.append("jobId", jobId);
     fd.append("files", u.upload, u.uploadName);
-    const res = await fetch("/api/convert", { method: "POST", body: fd });
+    const res = await authFetch("/api/convert", { method: "POST", body: fd });
     if (!res.ok || !res.body) {
       const j = await res.json().catch(() => null);
       return { kind: "err", msg: j?.error ?? `서버 오류 (${res.status})`, retry: res.status >= 500 };
@@ -102,10 +104,10 @@ async function request(u: Unit, onChars: (n: number) => void): Promise<Outcome> 
 
 const failNote = (label: string, msg: string) => `<p class="fail">⚠ ${label.replace(/[<>&]/g, "")} 변환 실패: ${msg.replace(/[<>&]/g, "")}</p>`;
 
-async function runUnit(u: Unit, onChars: (n: number) => void, depth = 0): Promise<{ html: string; failed: number }> {
+async function runUnit(u: Unit, onChars: (n: number) => void, jobId: string, depth = 0): Promise<{ html: string; failed: number }> {
   let lastMsg = "";
   for (let attempt = 0; attempt < 4; attempt++) {
-    const r = await request(u, onChars);
+    const r = await request(u, onChars, jobId);
     if (r.kind === "ok") return { html: await embedFigures(clean(r.text), [u.crop]), failed: 0 };
     if (r.kind === "rate") {
       lastMsg = "요청이 많아요.";
@@ -121,8 +123,8 @@ async function runUnit(u: Unit, onChars: (n: number) => void, depth = 0): Promis
           const blob = await slicePdf(u.pdf!.doc, from, to);
           return { label: `${u.label.replace(/ \d+~\d+쪽$/, "")} ${from + 1}~${to}쪽`, upload: blob, uploadName: `part${from + 1}.pdf`, crop: blob, pdf: { doc: u.pdf!.doc, from, to } };
         };
-        const a = await runUnit(await mk(u.pdf.from, mid), onChars, depth + 1);
-        const b = await runUnit(await mk(mid, u.pdf.to), onChars, depth + 1);
+        const a = await runUnit(await mk(u.pdf.from, mid), onChars, jobId, depth + 1);
+        const b = await runUnit(await mk(mid, u.pdf.to), onChars, jobId, depth + 1);
         return { html: a.html + BREAK + b.html, failed: a.failed + b.failed };
       }
       continue;
@@ -137,6 +139,7 @@ async function runUnit(u: Unit, onChars: (n: number) => void, depth = 0): Promis
 export async function convertUnits(
   units: Unit[],
   onProgress: (done: number, total: number, chars: number) => void,
+  jobId: string,
 ): Promise<{ html: string; failed: number }> {
   const results: string[] = new Array(units.length);
   let done = 0, failed = 0, next = 0;
@@ -146,10 +149,14 @@ export async function convertUnits(
     while (next < units.length) {
       const i = next++;
       live.set(i, 0);
-      const r = await runUnit(units[i], (n) => {
-        live.set(i, n);
-        report();
-      });
+      const r = await runUnit(
+        units[i],
+        (n) => {
+          live.set(i, n);
+          report();
+        },
+        jobId,
+      );
       results[i] = r.html;
       failed += r.failed;
       live.delete(i);

@@ -1,6 +1,7 @@
 // 예상문제 만들기 (브라우저): 1) 출제 계획을 세우고 2) 5문항씩 나눠 병렬로 문제를 만든 뒤 번호순으로 이어 붙인다.
 // 한 번에 수십 문항을 만들면 AI 출력 한도·서버 시간 제한에 걸리므로 나눠서 요청한다.
 import { clean, shrink } from "./client";
+import { authFetch } from "./auth-client";
 import { AREAS, DEFAULT_STYLE, type ExamStyle, type Plan, type PlanItem, type PredictOptions, type Role } from "./predict-prompt";
 
 const PROTOCOL = "1"; // app/api/predict/route.ts의 PROTOCOL과 같아야 함
@@ -16,10 +17,11 @@ export interface Upload {
   role: Role;
   file: File;
 }
-interface Prepared {
+export interface Prepared {
   role: Role;
   blob: Blob;
   name: string;
+  origName: string; // 올린 원래 파일 이름 (사용 기록용)
 }
 
 const ROMAN = ["Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ"];
@@ -31,13 +33,13 @@ export async function prepare(uploads: Upload[]): Promise<Prepared[]> {
   const out: Prepared[] = [];
   for (const [n, u] of uploads.entries()) {
     if (u.file.type === "application/pdf") {
-      out.push({ role: u.role, blob: u.file, name: u.file.name || `file${n + 1}.pdf` });
+      out.push({ role: u.role, blob: u.file, name: u.file.name || `file${n + 1}.pdf`, origName: u.file.name || `file${n + 1}.pdf` });
       continue;
     }
     const img = await shrink(u.file);
     if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(img.type))
       throw new Error(`이 사진 형식은 지원하지 않아요: ${u.file.name} (JPG·PNG 등으로 바꿔 주세요)`);
-    out.push({ role: u.role, blob: img, name: `img${n + 1}.${img.type === "image/jpeg" ? "jpg" : img.type.split("/")[1]}` });
+    out.push({ role: u.role, blob: img, name: `img${n + 1}.${img.type === "image/jpeg" ? "jpg" : img.type.split("/")[1]}`, origName: u.file.name || `사진${n + 1}` });
   }
   const total = out.reduce((s, p) => s + p.blob.size, 0);
   if (total > MAX_TOTAL_BYTES)
@@ -54,7 +56,7 @@ async function request(files: Prepared[], fields: Record<string, string>, onChar
       fd.append("roles", f.role);
       fd.append("files", f.blob, f.name);
     }
-    const res = await fetch("/api/predict", { method: "POST", body: fd });
+    const res = await authFetch("/api/predict", { method: "POST", body: fd });
     if (!res.ok || !res.body) {
       const j = await res.json().catch(() => null);
       return { kind: "err", msg: j?.error ?? `서버 오류 (${res.status})`, retry: res.status >= 500 };
@@ -136,8 +138,8 @@ export function numberItems(items: PlanItem[], style: ExamStyle): PlanItem[] {
   ];
 }
 
-export async function makePlan(files: Prepared[], opts: PredictOptions, onChars: (n: number) => void): Promise<Plan> {
-  const r = await withRetry(() => request(files, { stage: "plan", options: JSON.stringify(opts) }, onChars));
+export async function makePlan(files: Prepared[], opts: PredictOptions, onChars: (n: number) => void, jobId: string): Promise<Plan> {
+  const r = await withRetry(() => request(files, { stage: "plan", options: JSON.stringify(opts), jobId }, onChars));
   if ("error" in r) throw new Error(r.error);
   let plan: Plan;
   try {
@@ -168,6 +170,7 @@ export async function writeQuestions(
   items: PlanItem[],
   pointExample: string,
   onProgress: (done: number, total: number, chars: number) => void,
+  jobId: string,
 ): Promise<{ html: string; failed: number }> {
   // 영역(학프)이 바뀌거나 5문항이 차면 새 묶음. 영역의 첫 묶음 앞에는 영역 제목을 붙인다.
   const batches: PlanItem[][] = [];
@@ -192,7 +195,7 @@ export async function writeQuestions(
       const b = batches[i];
       live.set(i, 0);
       const r = await withRetry(() =>
-        request(files, { stage: "write", options: JSON.stringify(opts), items: JSON.stringify(b), pointExample }, (n) => {
+        request(files, { stage: "write", options: JSON.stringify(opts), items: JSON.stringify(b), pointExample, jobId }, (n) => {
           live.set(i, n);
           report();
         }),

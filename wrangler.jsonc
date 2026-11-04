@@ -9,6 +9,8 @@
     "directory": ".open-next/assets"
   },
   "observability": { "enabled": true },
+  // 올린 문서·결과물 보관용 클라우드플레어 R2 저장소. 같은 이름의 버킷을 먼저 만들어 두어야 배포가 됩니다. (SETUP.md 참고)
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "final-materials-files" }],
   // Anthropic API는 홍콩(HKG) 등 일부 지역에서 403으로 거부하므로, Worker를 미국 동부 근처에서 실행한다.
   "placement": { "region": "aws:us-east-1" }
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "./auth-gate";
 
 const TABS = [
   { href: "/", label: "📄 시험지·답지 변환" },
@@ -15,6 +16,8 @@ const TABS = [
 // 모든 화면 맨 위의 탭 메뉴
 export default function Nav() {
   const path = usePathname();
+  const auth = useAuth();
+  const me = auth?.me;
   return (
     <nav className="nav">
       {TABS.map((t) => (
@@ -22,6 +25,17 @@ export default function Nav() {
           {t.label}
         </Link>
       ))}
+      {me?.role === "admin" && (
+        <Link href="/admin" className={path === "/admin" ? "on" : ""}>
+          🛠 관리자{me.pendingCount > 0 && <span className="badge">{me.pendingCount}</span>}
+        </Link>
+      )}
+      {me && (
+        <span className="who">
+          <span title={me.email}>{me.name || me.email}</span>
+          <button onClick={() => auth?.signOut()}>로그아웃</button>
+        </span>
+      )}
     </nav>
   );
 }

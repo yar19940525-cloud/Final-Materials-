@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Nav from "../nav";
 import Progress, { useProgress } from "../progress";
 import { byChars } from "@/lib/progress";
+import { finishJob, jobLabel, newJobId, startJob } from "@/lib/jobs";
 import { FileSlot, useSlotFiles } from "../file-slot";
 import { prepareFiles, runAI } from "@/lib/ai-client";
 import type { CheerOptions } from "@/lib/cheer-prompt";
@@ -51,19 +52,28 @@ export default function Cheer() {
     prog.start();
     setMsg({ text: "직보 자료를 읽고 응원 메시지를 쓰는 중…" });
     setText("");
+    const jobId = newJobId();
+    let started: Promise<void> = Promise.resolve();
+    let outcome: { status: "done" | "failed"; error?: string; content?: string } = { status: "failed", error: "중단됨" };
     try {
       const files = await prepareFiles(slot.files.map((f) => ({ role: f.role, file: f.file })));
-      const r = await runAI("/api/cheer", files, { options: JSON.stringify({ ...opts }) }, (t) => {
+      // 관리자 기록용: 올린 직보 자료를 보관하고 작업 기록을 남긴다 (실패해도 계속)
+      started = startJob({ jobId, feature: "cheer", label: jobLabel(files.map((f) => f.origName)), files: files.map((f) => ({ name: f.origName, blob: f.blob })) });
+      const r = await runAI("/api/cheer", files, { options: JSON.stringify({ ...opts }), jobId }, (t) => {
         setText(t);
         prog.set(byChars(t.length, 1300)); // 응원 문자는 보통 1,000~1,500자
       });
       setText(r.text.trim());
+      outcome = { status: "done", error: r.truncated ? "중간에 잘림" : undefined, content: r.text.trim() };
       setMsg(r.truncated ? { text: "중간에 끊겼어요. 다시 만들어 보세요.", err: true } : { text: "완료! 내용을 고친 뒤 📋 복사해서 보내세요." });
     } catch (e) {
+      outcome = { status: "failed", error: e instanceof Error ? e.message : String(e) };
       setMsg({ text: `실패: ${e instanceof Error ? e.message : e}`, err: true });
     } finally {
       setBusy(false);
       prog.stop();
+      await started;
+      await finishJob({ jobId, feature: "cheer", kind: "text", ...outcome });
     }
   }
 

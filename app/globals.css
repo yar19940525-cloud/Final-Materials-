@@ -179,6 +179,38 @@ button:disabled{opacity:.5}
 .prog-bar{height:100%;background:var(--ac);border-radius:999px;transition:width .4s ease}
 .prog-txt{position:absolute;inset:0;display:grid;place-items:center;font-size:12px;font-weight:700;color:var(--fg);mix-blend-mode:normal}
 
+/* 로그인 문 */
+.gate{min-height:100vh;display:grid;place-items:center}
+.gate-card{max-width:420px;width:100%;text-align:center;padding:28px 22px}
+.gate-card h1{font-size:20px;margin:0 0 10px}
+.gbtn{width:100%;margin-top:8px;padding:12px}
+.nav .who{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mut)}
+.nav .who button{padding:4px 10px;font-size:12px}
+.badge{display:inline-block;min-width:18px;margin-left:6px;padding:0 6px;border-radius:999px;background:#d33;color:#fff;font-size:11px;font-weight:700;text-align:center}
+
+/* 관리자 */
+.adm-table{width:100%;border-collapse:collapse;font-size:13px}
+.adm-table th,.adm-table td{border-bottom:1px solid var(--bd);padding:8px 6px;text-align:left;vertical-align:top}
+.adm-table th{color:var(--mut);font-weight:600;white-space:nowrap}
+.adm-table tr.pend{background:rgba(255,190,0,.13)}
+.adm-act{white-space:nowrap}.adm-act button{margin-right:6px;padding:5px 10px;font-size:13px}
+button.danger{color:#d33;border-color:#d33}
+.adm-badge{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid var(--bd);color:var(--mut)}
+.adm-badge.pending{color:#a66a00;border-color:#e0a800}.adm-badge.approved{color:#1a7f37;border-color:#1a7f37}.adm-badge.blocked{color:#d33;border-color:#d33}.adm-badge.admin{color:var(--ac);border-color:var(--ac)}
+.adm-click{cursor:pointer}.adm-click:hover{background:rgba(127,127,127,.08)}
+.adm-detail td{background:var(--bg)}
+.adm-doc{max-width:260px;overflow-wrap:anywhere}
+.adm-files{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px}
+.adm-file{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--bd);border-radius:8px;padding:3px 8px;font-size:12px}
+.adm-file button,.adm-files>button{padding:3px 10px;font-size:12px}
+.adm-job.done{color:#1a7f37}.adm-job.failed{color:#d33}.adm-job.running{color:var(--mut)}
+.adm-month{margin-left:auto;font-size:13px;color:var(--mut)}
+.adm-month input{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:5px 8px}
+.adm-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.adm-cards div{border:1px solid var(--bd);border-radius:10px;padding:10px 12px}
+.adm-cards span{display:block;font-size:12px;color:var(--mut)}.adm-cards b{font-size:17px}
+.adm-pre{white-space:pre-wrap;background:#fff;color:#111;padding:14px;border-radius:6px;width:100%;overflow:auto;margin:0}
+
 @media print{
   body{background:#fff}main{padding:0;max-width:none}
   .card,h1,.sub,.msg,.tabs,.install,.install-tip,.nav,.prog{display:none!important}

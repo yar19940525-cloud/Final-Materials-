@@ -1,4 +1,5 @@
 // 브라우저 공용: 파일 준비(사진 축소), 서버 스트리밍 요청, 재시도 (응원 메시지·기출분석 탭)
+import { authFetch } from "./auth-client";
 import { shrink } from "./client";
 
 const PROTOCOL = "1"; // lib/server-ai.ts의 PROTOCOL과 같아야 함
@@ -10,10 +11,11 @@ export interface RoleFile {
   role: string;
   file: File;
 }
-interface Prepared {
+export interface Prepared {
   role: string;
   blob: Blob;
   name: string;
+  origName: string; // 올린 원래 파일 이름 (사용 기록용)
 }
 type Outcome = { kind: "ok"; text: string } | { kind: "rate" } | { kind: "trunc"; text: string } | { kind: "err"; msg: string; retry: boolean };
 
@@ -23,13 +25,13 @@ export async function prepareFiles(list: RoleFile[]): Promise<Prepared[]> {
   const out: Prepared[] = [];
   for (const [n, u] of list.entries()) {
     if (u.file.type === "application/pdf") {
-      out.push({ role: u.role, blob: u.file, name: u.file.name || `file${n + 1}.pdf` });
+      out.push({ role: u.role, blob: u.file, name: u.file.name || `file${n + 1}.pdf`, origName: u.file.name || `file${n + 1}.pdf` });
       continue;
     }
     const img = await shrink(u.file);
     if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(img.type))
       throw new Error(`이 사진 형식은 지원하지 않아요: ${u.file.name} (JPG·PNG 등으로 바꿔 주세요)`);
-    out.push({ role: u.role, blob: img, name: `img${n + 1}.${img.type === "image/jpeg" ? "jpg" : img.type.split("/")[1]}` });
+    out.push({ role: u.role, blob: img, name: `img${n + 1}.${img.type === "image/jpeg" ? "jpg" : img.type.split("/")[1]}`, origName: u.file.name || `사진${n + 1}` });
   }
   const total = out.reduce((s, p) => s + p.blob.size, 0);
   if (total > MAX_TOTAL_BYTES)
@@ -46,7 +48,7 @@ async function request(url: string, files: Prepared[], fields: Record<string, st
       fd.append("roles", f.role);
       fd.append("files", f.blob, f.name);
     }
-    const res = await fetch(url, { method: "POST", body: fd });
+    const res = await authFetch(url, { method: "POST", body: fd });
     if (!res.ok || !res.body) {
       const j = await res.json().catch(() => null);
       return { kind: "err", msg: j?.error ?? `서버 오류 (${res.status})`, retry: res.status >= 500 };

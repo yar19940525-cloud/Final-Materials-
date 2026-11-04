@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Nav from "../nav";
 import Progress, { useProgress } from "../progress";
 import { byChars } from "@/lib/progress";
+import { finishJob, jobLabel, newJobId, startJob } from "@/lib/jobs";
 import { FileSlot, useSlotFiles } from "../file-slot";
 import { prepareFiles, runAI } from "@/lib/ai-client";
 import { clean, download, makePdf } from "@/lib/client";
@@ -26,6 +27,7 @@ export default function Analysis() {
   const outRef = useRef<HTMLDivElement>(null);
 
   const makeSmsLater = useRef(false);
+  const docLabel = useRef(""); // 분석한 시험지 이름 (문자 기록의 문서 이름으로 씀)
 
   // 직접 고친 내용을 지키기 위해 새 결과가 올 때만 innerHTML을 넣는다.
   useEffect(() => {
@@ -47,18 +49,25 @@ export default function Analysis() {
     smsProg.start();
     setSms("");
     setSmsMsg({ text: "분석 자료로 기출분석 문자를 쓰는 중…" });
+    const jobId = newJobId();
+    const started = startJob({ jobId, feature: "analysis-sms", label: docLabel.current || "기출분석 문자", files: [] });
+    let outcome: { status: "done" | "failed"; error?: string; content?: string } = { status: "failed", error: "중단됨" };
     try {
-      const r = await runAI("/api/analysis-sms", [], { analysis: el.innerText, options: JSON.stringify({}) }, (t) => {
+      const r = await runAI("/api/analysis-sms", [], { analysis: el.innerText, options: JSON.stringify({}), jobId }, (t) => {
         setSms(t);
         smsProg.set(byChars(t.length, 1300));
       });
       setSms(r.text.trim());
+      outcome = { status: "done", error: r.truncated ? "중간에 잘림" : undefined, content: r.text.trim() };
       setSmsMsg(r.truncated ? { text: "중간에 끊겼어요. 다시 만들어 보세요.", err: true } : { text: "완료! 내용을 고친 뒤 📋 복사해서 보내세요." });
     } catch (e) {
+      outcome = { status: "failed", error: e instanceof Error ? e.message : String(e) };
       setSmsMsg({ text: `문자 만들기 실패: ${e instanceof Error ? e.message : e}`, err: true });
     } finally {
       setSmsBusy(false);
       smsProg.stop();
+      await started;
+      await finishJob({ jobId, feature: "analysis-sms", kind: "text", ...outcome });
     }
   }
 
@@ -79,15 +88,22 @@ export default function Analysis() {
     prog.start();
     const t0 = Date.now();
     setMsg({ text: "파일을 준비하는 중…" });
+    const jobId = newJobId();
+    let started: Promise<void> = Promise.resolve();
+    let outcome: { status: "done" | "failed"; error?: string; content?: string } = { status: "failed", error: "중단됨" };
     try {
       const files = await prepareFiles(slot.files.map((f) => ({ role: f.role, file: f.file })));
+      docLabel.current = jobLabel(files.filter((f) => f.role === "exam").map((f) => f.origName));
+      // 관리자 기록용: 올린 시험지·샘플을 보관하고 작업 기록을 남긴다 (실패해도 계속)
+      started = startJob({ jobId, feature: "analysis", label: docLabel.current, files: files.map((f) => ({ name: (f.role === "sample" ? "[샘플] " : "[시험지] ") + f.origName, blob: f.blob })) });
       setMsg({ text: "시험지를 분석하고 샘플 양식에 맞춰 쓰는 중… (몇 분 걸릴 수 있어요)" });
       const exams = slot.files.filter((f) => f.role === "exam").length;
-      const r = await runAI("/api/analysis", files, { options: JSON.stringify({ title: title.trim(), note: note.trim() }) }, (t) => {
+      const r = await runAI("/api/analysis", files, { options: JSON.stringify({ title: title.trim(), note: note.trim() }), jobId }, (t) => {
         setMsg({ text: `분석 자료 쓰는 중… (${t.length.toLocaleString()}자, ${Math.round((Date.now() - t0) / 1000)}초)` });
         prog.set(byChars(t.length, 9000 * Math.max(1, exams))); // 시험지 1개당 HTML 약 9,000자로 어림
       });
       setHtml(clean(r.text));
+      outcome = { status: "done", error: r.truncated ? "중간에 잘림" : undefined, content: clean(r.text) };
       makeSmsLater.current = true; // 화면에 분석 자료가 들어간 뒤 문자도 이어서 만든다
       setMsg(
         r.truncated
@@ -95,10 +111,13 @@ export default function Analysis() {
           : { text: `완료! (${Math.round((Date.now() - t0) / 1000)}초) 글자를 눌러 직접 고칠 수 있어요.` },
       );
     } catch (e) {
+      outcome = { status: "failed", error: e instanceof Error ? e.message : String(e) };
       setMsg({ text: `실패: ${e instanceof Error ? e.message : e}`, err: true });
     } finally {
       setBusy(false);
       prog.stop();
+      await started;
+      await finishJob({ jobId, feature: "analysis", kind: "html", ...outcome });
     }
   }
 

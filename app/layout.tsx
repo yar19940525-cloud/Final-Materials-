@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Pwa from "./pwa";
+import AuthGate from "./auth-gate";
 
 export const metadata: Metadata = {
   title: "학습지 → 시험지·답지 변환기",
@@ -8,6 +9,13 @@ export const metadata: Metadata = {
   applicationName: "시험지 변환기",
   icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
   appleWebApp: { capable: true, title: "시험지 변환기", statusBarStyle: "default" },
+  // 검색엔진에 나오지 않게 (구글·네이버 등)
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: { index: false, follow: false, noimageindex: true, nosnippet: true },
+  },
 };
 
 export const viewport: Viewport = {
@@ -27,7 +35,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;700;900&display=swap" rel="stylesheet" />
       </head>
       <body>
-        {children}
+        {/* 로그인하고 관리자가 승인한 사람에게만 화면을 보여 준다 */}
+        <AuthGate>{children}</AuthGate>
         <Pwa />
       </body>
     </html>

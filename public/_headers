@@ -1,0 +1,4 @@
+# 정적 파일(아이콘·서비스 워커 등)에도 검색 차단 헤더
+/*
+  X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex, notranslate
+  Referrer-Policy: no-referrer

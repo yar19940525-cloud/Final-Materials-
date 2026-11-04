@@ -3,7 +3,8 @@
 import Nav from "./nav";
 import Progress, { useProgress } from "./progress";
 import { useEffect, useRef, useState } from "react";
-import { download, makePdf } from "@/lib/client";
+import { download, makePdf, shrink } from "@/lib/client";
+import { finishJob, jobLabel, newJobId, startJob } from "@/lib/jobs";
 import { buildUnits, convertUnits, countPages, MAX_TOTAL_PAGES } from "@/lib/convert";
 import { layoutMatches } from "@/lib/match";
 import { makeDocx } from "@/lib/docx";
@@ -83,6 +84,16 @@ export default function Home() {
     setBusy(true);
     prog.start();
     setMsg({ text: "파일을 준비하는 중…" });
+    // 관리자 기록용: 올린 문서를 보관하고 작업 기록을 남긴다 (사진은 줄여서). 실패해도 변환은 계속된다.
+    const jobId = newJobId();
+    const started = (async () =>
+      startJob({
+        jobId,
+        feature: "convert",
+        label: jobLabel(items.map((i) => i.file.name)),
+        files: await Promise.all(items.map(async (i) => ({ name: i.file.name, blob: i.file.type === "application/pdf" ? i.file : await shrink(i.file) }))),
+      }))();
+    let outcome: { status: "done" | "failed"; error?: string; content?: string } = { status: "failed", error: "중단됨" };
     try {
       const units = await buildUnits(items.map((i) => i.file));
       const pages = countPages(units);
@@ -95,19 +106,23 @@ export default function Home() {
         // 끝난 조각 + 진행 중인 조각(조각당 약 4,000자로 어림)
         const inflight = Math.min(3, total - done);
         prog.set((done + Math.min(inflight * 0.9, chars / 4000)) / total);
-      });
+      }, jobId);
       setMode("test");
       setHtml(html);
+      outcome = { status: "done", error: failed ? `${failed}개 조각 변환 실패` : undefined, content: html };
       setMsg(
         failed
           ? { text: `일부 변환 실패: ${units.length}개 중 ${failed}개 조각을 못 바꿨어요. 결과에서 ⚠ 표시된 부분만 다시 올려 주세요.`, err: true }
           : { text: "완료! 아래에서 시험지/답지를 확인하세요." },
       );
     } catch (e) {
+      outcome = { status: "failed", error: e instanceof Error ? e.message : String(e) };
       setMsg({ text: `실패: ${e instanceof Error ? e.message : e} 다시 시도해 주세요.`, err: true });
     } finally {
       setBusy(false);
       prog.stop();
+      await started;
+      await finishJob({ jobId, feature: "convert", kind: "html", ...outcome });
     }
   }
 

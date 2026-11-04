@@ -3,6 +3,7 @@
 import Nav from "../nav";
 import Progress, { useProgress } from "../progress";
 import { byChars } from "@/lib/progress";
+import { finishJob, jobLabel, newJobId, startJob } from "@/lib/jobs";
 import { useEffect, useRef, useState } from "react";
 import { download, makePagesPdf } from "@/lib/client";
 import { makeDocx } from "@/lib/docx";
@@ -127,8 +128,14 @@ export default function PredictApp({ variant }: { variant: Variant }) {
     setMsg({ text: "파일을 준비하는 중…" });
     const t0 = Date.now();
     const sec = () => Math.round((Date.now() - t0) / 1000);
+    const feature = variant === "hakpeu" ? "predict-hakpeu" : "predict-jikbo";
+    const jobId = newJobId();
+    let started: Promise<void> = Promise.resolve();
+    let outcome: { status: "done" | "failed"; error?: string; content?: string } = { status: "failed", error: "중단됨" };
     try {
       const files = await prepare(items.map((i) => ({ role: i.role, file: i.file })));
+      // 관리자 기록용: 올린 문서를 보관하고 작업 기록을 남긴다. 실패해도 문제 만들기는 계속된다.
+      started = startJob({ jobId, feature, label: jobLabel(files.map((f) => f.origName)), files: files.map((f) => ({ name: f.origName, blob: f.blob })) });
       const o = variant === "hakpeu" ? { ...opts, count: areaTotal } : opts;
       setMsg({ text: "1단계: 자료를 분석하고 출제 계획을 세우는 중… (1~2분)" });
       const plan = await makePlan(files, o, (n) =>
@@ -136,6 +143,7 @@ export default function PredictApp({ variant }: { variant: Variant }) {
           setMsg({ text: `1단계: 자료 분석·출제 계획 중… (${n.toLocaleString()}자, ${sec()}초)` });
           prog.set(0.15 * byChars(n, 180 * o.count + 800)); // 계획 단계 = 전체의 15%
         },
+        jobId,
       );
       prog.set(0.15);
       setMsg({ text: `2단계: ${plan.items.length}문항을 만드는 중…` });
@@ -146,20 +154,26 @@ export default function PredictApp({ variant }: { variant: Variant }) {
           const inflight = Math.min(3, total - done);
           prog.set(0.15 + 0.85 * Math.min(1, (done + Math.min(inflight * 0.9, chars / 3500)) / total));
         },
+        jobId,
       );
       setMode("test");
       setStyle(plan.style);
-      setHtml(assemble(title.trim(), plan, qs, V.heading));
+      const doc = assemble(title.trim(), plan, qs, V.heading);
+      setHtml(doc);
+      outcome = { status: "done", error: failed ? `${failed}개 묶음 실패` : undefined, content: doc };
       setMsg(
         failed
           ? { text: `일부 실패: ⚠ 표시된 문항 묶음을 못 만들었어요. 다시 만들어 보세요.`, err: true }
           : { text: `완료! ${plan.items.length}문항 (${sec()}초). 답지 탭에서 정답·해설·출제 근거를 확인하세요.` },
       );
     } catch (e) {
+      outcome = { status: "failed", error: e instanceof Error ? e.message : String(e) };
       setMsg({ text: `실패: ${e instanceof Error ? e.message : e} 다시 시도해 주세요.`, err: true });
     } finally {
       setBusy(false);
       prog.stop();
+      await started;
+      await finishJob({ jobId, feature, kind: "html", ...outcome });
     }
   }
 

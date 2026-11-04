@@ -8,6 +8,7 @@ import { prepareFiles, runAI } from "@/lib/ai-client";
 import { clean, download, makePdf } from "@/lib/client";
 import { makeDocx } from "@/lib/docx";
 import type { BlankLevel } from "@/lib/dialogue-prompt";
+import { finishJob, jobLabel, newJobId, startJob } from "@/lib/jobs";
 
 type Mode = "test" | "key";
 const CONCURRENCY = 3;
@@ -43,8 +44,13 @@ export default function Dialogue() {
     prog.start();
     const t0 = Date.now();
     setMsg({ text: "사진을 준비하는 중…" });
+    const jobId = newJobId();
+    let started: Promise<void> = Promise.resolve();
+    let outcome: { status: "done" | "failed"; error?: string; content?: string } = { status: "failed", error: "중단됨" };
     try {
       const files = await prepareFiles(slot.files.map((f) => ({ role: "dlg", file: f.file })));
+      // 관리자 기록용: 올린 사진을 보관하고 작업 기록을 남긴다 (실패해도 계속)
+      started = startJob({ jobId, feature: "dialogue", label: jobLabel(files.map((f) => f.origName)), files: files.map((f) => ({ name: f.origName, blob: f.blob })) });
       // 사진(파일) 한 장씩 따로 요청해 3장씩 동시에 처리하고, 올린 순서대로 이어 붙인다.
       const results: string[] = new Array(files.length);
       const live = new Map<number, number>();
@@ -59,7 +65,7 @@ export default function Dialogue() {
           const i = next++;
           live.set(i, 0);
           try {
-            const r = await runAI("/api/dialogue", [files[i]], { options: JSON.stringify({ level, note: note.trim() }) }, (t) => {
+            const r = await runAI("/api/dialogue", [files[i]], { options: JSON.stringify({ level, note: note.trim() }), jobId }, (t) => {
               live.set(i, t.length);
               report();
             });
@@ -79,6 +85,7 @@ export default function Dialogue() {
         `<table class="hd"><tr><td>학년</td><td>반</td><td>번호</td><td>이름</td><td>점수</td></tr><tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr></table>`;
       setMode("test");
       setHtml(head + results.join(""));
+      outcome = { status: "done", error: failed ? `${failed}장 실패` : undefined, content: head + results.join("") };
       const blanks = (results.join("").match(/class="f"/g) ?? []).length;
       setMsg(
         failed
@@ -86,10 +93,13 @@ export default function Dialogue() {
           : { text: `완료! 빈칸 ${blanks}개 (${Math.round((Date.now() - t0) / 1000)}초). 답지 탭에서 정답을 확인하세요.` },
       );
     } catch (e) {
+      outcome = { status: "failed", error: e instanceof Error ? e.message : String(e) };
       setMsg({ text: `실패: ${e instanceof Error ? e.message : e}`, err: true });
     } finally {
       setBusy(false);
       prog.stop();
+      await started;
+      await finishJob({ jobId, feature: "dialogue", kind: "html", ...outcome });
     }
   }
 

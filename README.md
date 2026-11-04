@@ -1,3 +1,16 @@
+# 시험지·교재 자동 제작 (로그인·승인·관리자 버전)
+
+> **이 저장소(Final-Materials)는 구글 로그인 + 관리자 승인 + 사용 기록·문서 보관이 들어간 버전입니다.**
+> 처음 설정(Supabase·Cloudflare R2·Google 로그인)은 **[SETUP.md](./SETUP.md)** 를 따라 하세요.
+
+- 승인된 사람만 사용: 모든 화면·API가 로그인·승인을 확인 (`lib/server-auth.ts`, `app/auth-gate.tsx`)
+- 관리자(`/admin`): 사용자 승인·차단·삭제, 사용 기록(누가·언제·어떤 문서·요금), 월별 통계, 올린 문서·결과물 열기
+- 저장: 데이터베이스 = Supabase (`supabase/schema.sql`), 문서·결과물 = Cloudflare R2 (`FILES` 바인딩)
+- 검색엔진 차단: `app/robots.ts`, `X-Robots-Tag` 헤더, robots 메타
+- 필요한 환경 변수: `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_EMAILS` (`.env.example`)
+
+---
+
 # 학습지 → 시험지·답지 변환기
 
 학습지 사진을 올리면 학생 필기·낙서를 지운 **깨끗한 시험지**와, 정답이 빨간색으로 표시된 **답지**를 만들어 주는 Next.js 서비스입니다.
